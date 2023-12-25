@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"bytes"
 	"compress/gzip"
+	"encoding/csv"
 	"errors"
 	"flag"
 	"fmt"
@@ -22,6 +23,8 @@ var dirOfAtolLogs = flag.String("diratollogs", "", "директория лог 
 var clearLogsProgramm = flag.Bool("clearlogs", true, "очистить логи программы")
 
 var LOGSDIR = "./logs/"
+var RESULTSDIR = "./results/"
+
 var filelogmap map[string]*os.File
 var logsmap map[string]*log.Logger
 
@@ -45,6 +48,12 @@ func main() {
 	clearLogsDescr := fmt.Sprintf("Очистить логи программы %v", *clearLogsProgramm)
 	fmt.Println(clearLogsDescr)
 	fmt.Println("инициализация лог файлов программы")
+	if foundedLogDir, _ := doesFileExist(LOGSDIR); !foundedLogDir {
+		os.Mkdir(LOGSDIR, 0777)
+	}
+	if foundedLogDir, _ := doesFileExist(RESULTSDIR); !foundedLogDir {
+		os.Mkdir(RESULTSDIR, 0777)
+	}
 	filelogmap, logsmap, descrError, err = initializationLogs(*clearLogsProgramm, LOGINFO, LOGERROR, LOGSKIP_LINES, LOGOTHER)
 	defer func() {
 		fmt.Println("закрытие дескрипторов лог файлов программы")
@@ -113,7 +122,6 @@ func ReadAtolLogFile(atolLogFile string) (string, error) {
 	file_atol_log, err := os.Open(atolLogFile)
 	if err != nil {
 		descrError := fmt.Sprintf("Не удалось открыть лог файл %v атол c ошибкой: %v", atolLogFile, err)
-		//fmt.Println(descrError)
 		logsmap[LOGERROR].Println(descrError)
 		return descrError, err
 	}
@@ -121,6 +129,19 @@ func ReadAtolLogFile(atolLogFile string) (string, error) {
 	var QueueLastStrings [LEN_QUEUE_BUFFER_LOGS_STRING]string
 	var QueueLastCommands [LEN_QUEUE_BUFFER_LOGS_STRING]string
 	var QueueLastRightCommands [LEN_QUEUE_BUFFER_LOGS_STRING]string
+	//csv файл чеков
+	//flagsTempOpen := os.O_APPEND | os.O_CREATE | os.O_WRONLY
+	flagsTempOpen := os.O_TRUNC | os.O_CREATE | os.O_WRONLY
+	file_checks, err := os.OpenFile(RESULTSDIR, flagsTempOpen, 0644)
+	if err != nil {
+		descrError := fmt.Sprintf("ошибка создания файла чеков %v", err)
+		logsmap[LOGERROR].Println(descrError)
+		return descrError, err
+	}
+	defer file_checks.Close()
+	csv_checks := csv.NewWriter(file_checks)
+	defer csv_checks.Flush()
+
 	OSNChernov := ""
 	OSNChist := ""
 	fmt.Println(OSNChernov, OSNChist)
