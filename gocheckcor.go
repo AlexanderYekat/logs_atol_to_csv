@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 )
 
@@ -73,7 +74,6 @@ const Version_of_program = "2023_12_25_01"
 func main() {
 	var err error
 	var descrError string
-
 	spisKass = make(map[string]TKassa)
 	//spisKass["1"] = TKassa{zavN: "fdfdfd"}
 
@@ -173,53 +173,51 @@ func lastAssenatialActWasCloseReceipt(lastActions [LEN_QUEUE_BUFFER_LOGS_STRING]
 	return res
 }
 
+// registrationMap, paymentMap, operatorLoginMap, openReceiptMap, receiptTotalMap
 func processingResultOfCommand(namelogfile string, numLine int, deviceId, command string,
 	queueLastActs [LEN_QUEUE_BUFFER_LOGS_STRING]string,
-	parametersIn, parametersOut map[string]string, registrpos map[string]map[string]string,
-	loginoper, openreci, paymentreci, totalreci map[string]string) {
+	parametersIn, parametersOut map[string]string,
+	registrationMap map[string]map[string]string,
+	operatorLoginMap, openReceiptMap, paymentMap map[string]string, receiptTotalMap *string) {
 	//check_document_closed,fn_query_data,open_shift,cancel_receipt,
 	//begin_nonfiscal_document,print_text,operator_login,open_receipt,registration,
 	//receipt_total,payment,close_receipt,query_data
-	logsmap[LOGOTHER].Println("line", numLine, "оброботка команды", command, "с входными параметрами", parametersIn, "и выходными", parametersOut)
-	//return
+	logsmap[LOGOTHER].Println("logfile", namelogfile, "line", numLine, "deviceId", deviceId, "оброботка команды", command, "с входными параметрами", parametersIn, "и выходными", parametersOut)
 	switch command {
 	case "cancel_receipt":
-		//очищаем информацию о регистрациях, оплатах и суммах
-		clearParametersOfCommand(loginoper)
-		clearParametersOfCommand(openreci)
-		for kTemp, _ := range registrpos {
-			clearParametersOfCommand(registrpos)
+		//очищаем информацию об кассирах, осн, типа чека, регистрациях, оплатах и суммах
+		clearParametersOfCommand(operatorLoginMap)
+		clearParametersOfCommand(openReceiptMap)
+		clearParametersOfCommand(paymentMap)
+		receiptTotalMap = ""
+		for kTemp, _ := range registrationMap {
+			clearParametersOfCommand(registrationMap[kTemp])
 		}
-		for kTemp, _ := range registrpos {
-			clearParametersOfCommand(registrpos)
+		for kTemp, _ := range registrationMap {
+			delete(registrpos, registrationMap)
 		}
-		for kTemp, _ := range registrpos {
-			delete(registrpos, kTemp)
-		}
-		clearParametersOfCommand(paymentreci)
-		clearParametersOfCommand(totalreci)
 	case "operator_login": //запоминаем кассира
 		fmt.Println(parametersIn["1021"]) //имя кассира
 		fmt.Println(parametersIn["1203"]) //ИНН кассира
 		for kTemp, vTemp := range parametersIn {
-			loginoper[kTemp] = vTemp
+			operatorLoginMap[kTemp] = vTemp
 		}
 	case "open_receipt": //запоминаем тип чека и систему налогообложения
 		fmt.Println(parametersIn["1055"])                       //система налогообложкния
 		fmt.Println(parametersIn["1187"])                       //место расчетов
 		fmt.Println(parametersIn["LIBFPTR_PARAM_RECEIPT_TYPE"]) //тип чека
 		for kTemp, vTemp := range parametersIn {
-			openreci[kTemp] = vTemp
+			openReceiptMap[kTemp] = vTemp
 		}
-		/*LIBFPTR_RT_CLOSED = 0,
-		LIBFPTR_RT_SELL = 1,
-		LIBFPTR_RT_SELL_RETURN = 2,
-		LIBFPTR_RT_SELL_CORRECTION = 7,
-		LIBFPTR_RT_SELL_RETURN_CORRECTION = 8,
-		LIBFPTR_RT_BUY = 4,
-		LIBFPTR_RT_BUY_RETURN = 5,
-		LIBFPTR_RT_BUY_CORRECTION = 9,
-		LIBFPTR_RT_BUY_RETURN_CORRECTION = 10,*/
+		//LIBFPTR_RT_CLOSED = 0,
+		//LIBFPTR_RT_SELL = 1,
+		//LIBFPTR_RT_SELL_RETURN = 2,
+		//LIBFPTR_RT_SELL_CORRECTION = 7,
+		//LIBFPTR_RT_SELL_RETURN_CORRECTION = 8,
+		//LIBFPTR_RT_BUY = 4,
+		//LIBFPTR_RT_BUY_RETURN = 5,
+		//LIBFPTR_RT_BUY_CORRECTION = 9,
+		//LIBFPTR_RT_BUY_RETURN_CORRECTION = 10,
 	case "registration":
 		//запоминаем позицию, если чек будет закрыт, то запишем эту ифнформацию в файл
 		fmt.Println(parametersIn["LIBFPTR_PARAM_COMMODITY_NAME"])
@@ -234,30 +232,50 @@ func processingResultOfCommand(namelogfile string, numLine int, deviceId, comman
 		fmt.Println(parametersIn["1212"])
 		fmt.Println(parametersIn["1214"])
 		fmt.Println(parametersIn["LIBFPTR_PARAM_MEASUREMENT_UNIT"])
-		curPos := len(registrpos) + 1
-		registrpos[string(curPos)] = make(map[string]string)
+		curPos := string(len(registrpos) + 1)
+		registrationMap[curPos] = make(map[string]string)
 		for kTemp, vTemp := range parametersIn {
-			registrpos[string(curPos)][kTemp] = vTemp
+			registrationMap[curPos][kTemp] = vTemp
 		}
 	case "payment":
-		/*LIBFPTR_PT_CASH           = 0
-		LIBFPTR_PT_ELECTRONICALLY = 1
-		LIBFPTR_PT_PREPAID        = 2
-		LIBFPTR_PT_CREDIT         = 3
-		LIBFPTR_PT_OTHER          = 4
-		LIBFPTR_PT_6              = 5
-		LIBFPTR_PT_7              = 6
-		LIBFPTR_PT_8              = 7
-		LIBFPTR_PT_9              = 8
-		LIBFPTR_PT_10             = 9*/
+		//LIBFPTR_PT_CASH           = 0
+		//LIBFPTR_PT_ELECTRONICALLY = 1
+		//LIBFPTR_PT_PREPAID        = 2
+		//LIBFPTR_PT_CREDIT         = 3
+		//LIBFPTR_PT_OTHER          = 4
+		//LIBFPTR_PT_6              = 5
+		//LIBFPTR_PT_7              = 6
+		//LIBFPTR_PT_8              = 7
+		//LIBFPTR_PT_9              = 8
+		//LIBFPTR_PT_10             = 9
+		var prevSummOfPayment float64
+		var currSummOfPayment float64
+		prevSummOfPayment = 0
+		currSummOfPayment = 0
+		prevSummOfPaymentStr := ""
+		newSummOfPayStr := parametersIn["LIBFPTR_PARAM_PAYMENT_SUM"]
 		fmt.Println(parametersIn["LIBFPTR_PARAM_PAYMENT_TYPE"]) //тип оплаты
 		fmt.Println(parametersIn["LIBFPTR_PARAM_PAYMENT_SUM"])  //сумма типом оплаты
-		for kTemp, vTemp := range parametersIn {
-			registrpos[kTemp] = vTemp
+		typeOfPaymentTemp := parametersIn["LIBFPTR_PARAM_PAYMENT_TYPE"]
+		if _, ok := paymentMap[typeOfPaymentTemp]; ok { //если один и тот же тип оплаты несколько раз
+			prevSummOfPaymentStr := paymentMap[typeOfPaymentTemp]
+			if summTemp, err := strconv.ParseFloat(prevSummOfPaymentStr, 64); err == nil {
+				prevSummOfPayment = summTemp
+			}
 		}
+		if prevSummOfPaymentStr != "" {
+			currSummStr := parametersIn["LIBFPTR_PARAM_PAYMENT_SUM"]
+			if summTemp, err := strconv.ParseFloat(currSummStr, 64); err == nil {
+				currSummOfPayment = summTemp
+			}
+			newSummOfPay := prevSummOfPayment + currSummOfPayment
+			newSummOfPayStr = fmt.Sprint(newSummOfPay)
+		}
+		paymentMap[typeOfPaymentTemp] = newSummOfPayStr
 	case "receipt_total":
 		//запоминаем сумма чека
 		fmt.Println(parametersIn["LIBFPTR_PARAM_SUM"]) //сумма чека
+		*receiptTotalMap = parametersIn["LIBFPTR_PARAM_SUM"]
 	case "close_receipt": //запоминаем чек
 		//
 	case "check_document_closed":
@@ -344,6 +362,31 @@ func ReadAtolLogFile(atolLogFile string) (string, error) {
 
 	var InParametersLastCommandByDeviceId map[string]map[string]string
 	var OutParametersLastCommandByDeviceId map[string]map[string]string
+	InParametersLastCommandByDeviceId = make(map[string]map[string]string)
+	OutParametersLastCommandByDeviceId = make(map[string]map[string]string)
+
+	var registrationMap map[string]map[string]string
+	var paymentMap map[string]string
+	var operatorLoginMap map[string]string
+	var openReceiptMap map[string]string
+	var receiptTotalMap string
+	registrationMap = make(map[string]map[string]string)
+	operatorLoginMap = make(map[string]string)
+	openReceiptMap = make(map[string]string)
+	paymentMap = make(map[string]string)
+	receiptTotalMap = ""
+
+	/*var registrationMapByDeviceId map[string]map[string]map[string]string
+	var paymentMapDeviceId map[string]map[string]map[string]string
+	var operatorLoginMapDeviceId map[string]map[string]string
+	var openReceiptMapDeviceId map[string]map[string]string
+	var receiptTotalMapDeviceId map[string]map[string]string
+	registrationMapByDeviceId = make(map[string]map[string]map[string]string)
+	paymentMapDeviceId = make(map[string]map[string]map[string]string)
+	operatorLoginMapDeviceId = make(map[string]map[string]string)
+	openReceiptMapDeviceId = make(map[string]map[string]string)
+	receiptTotalMapDeviceId = make(map[string]map[string]string)*/
+
 	//csv файл чеков
 	//flagsTempOpen := os.O_APPEND | os.O_CREATE | os.O_WRONLY
 	/*flagsTempOpen := os.O_TRUNC | os.O_CREATE | os.O_WRONLY
@@ -367,7 +410,7 @@ func ReadAtolLogFile(atolLogFile string) (string, error) {
 	for scannerLogAtol.Scan() {
 		currNumLine++
 		line := scannerLogAtol.Bytes()
-		if thisLineHasNoContent(line, currNumLine) {
+		if thisLineHasNoContent(shortFileNameLog, line, currNumLine) {
 			continue
 		}
 		//                                                             62
@@ -378,14 +421,14 @@ func ReadAtolLogFile(atolLogFile string) (string, error) {
 		//receipt_total,payment,close_receipt,query_data
 		AddLineInQueue(&QueueLastStrings, string(line))
 
-		logsmap[LOGINFO].Println("logfile=", shortFileNameLog, "line=", currNumLine, string(line))
+		logsmap[LOGINFO].Println("logfile", shortFileNameLog, "line", currNumLine, string(line))
 		//если предыдущая строка была командой
 		if QueueLastStrings[1] != "" {
 			afterFiscPrintPrev := strings.TrimSpace(QueueLastStrings[1][62:])
 			if isCommandLogLine(afterFiscPrintPrev) { //это строка команды
 				//получаем девайс id команды
 				//send header sign=[B65D9C62] deviceID=[39515DDE99BEB2C2D17738FEAF401B0B2C47CB6D] id=0176 type=[REQUEST] len=94
-				currDeviceId = getDeviceIdofCommand(afterFiscPrintPrev)
+				currDeviceId = getDeviceIdofCommand(afterFiscPrint)
 				if currDeviceId != "" {
 					_, ok := QueueLastCommandsByDeviceId[currDeviceId]
 					if !ok {
@@ -415,6 +458,9 @@ func ReadAtolLogFile(atolLogFile string) (string, error) {
 				//запоминаем успешно выполненную команду
 				AddLineInQueue(&QueueLastRightCommands, QueueLastCommands[0])
 				if currDeviceId != "" {
+					if _, ok := QueueLastRightCommandsByDeviceId[currDeviceId]; !ok {
+						QueueLastRightCommandsByDeviceId[currDeviceId] = new([LEN_QUEUE_BUFFER_LOGS_STRING]string)
+					}
 					AddLineInQueue(QueueLastRightCommandsByDeviceId[currDeviceId], QueueLastCommands[0])
 				}
 				if commandHasOutputParameters(QueueLastRightCommands[0]) { //команда имеет выходные парамтеры
@@ -422,7 +468,13 @@ func ReadAtolLogFile(atolLogFile string) (string, error) {
 					waitOutParameters = true
 				} else { //
 					//запускаем обработку результата
-					//processingResultOfCommand(QueueLastRightCommands[0], currNumLine, InParametersLastCommand, outParametersLastCommand)
+					if currDeviceId != "" {
+						processingResultOfCommand(shortFileNameLog, currNumLine, currDeviceId,
+							QueueLastRightCommandsByDeviceId[currDeviceId][0],
+							*QueueLastRightCommandsByDeviceId[currDeviceId], InParametersLastCommandByDeviceId[currDeviceId],
+							OutParametersLastCommandByDeviceId[currDeviceId], registrationMap, paymentMap,
+							operatorLoginMap, openReceiptMap, &receiptTotalMap)
+					}
 				}
 			} else {
 				//очищаем входные параметры
@@ -460,7 +512,14 @@ func ReadAtolLogFile(atolLogFile string) (string, error) {
 				//убираем флаг, что сейчас читаем выходные параметры
 				gettingOutParameters = false
 				//запускаем обработку результата
-				//processingResultOfCommand(QueueLastRightCommands[0], currNumLine, InParametersLastCommand, outParametersLastCommand)
+				if currDeviceId != "" {
+					processingResultOfCommand(shortFileNameLog, currNumLine, currDeviceId,
+						QueueLastRightCommandsByDeviceId[currDeviceId][0],
+						*QueueLastRightCommandsByDeviceId[currDeviceId],
+						InParametersLastCommandByDeviceId[currDeviceId],
+						OutParametersLastCommandByDeviceId[currDeviceId],
+						registrationMap, paymentMap, operatorLoginMap, openReceiptMap, &receiptTotalMap)
+				}
 			}
 		}
 		if isCommandLogLine(afterFiscPrint) { //это строка команды
@@ -501,7 +560,7 @@ func GetAllParametersCurrentCommand(QueueStrings [LEN_QUEUE_BUFFER_LOGS_STRING]s
 		if obrStr == "" {
 			continue
 		}
-		//logsmap[LOGINFO_WITHSTD].Println("lineNum", lineNum, "---", obrStr)
+		//logsmap[LOGINFO_WITHSTD].Println("logfile", namelogfile, "lineNum", lineNum, "---", obrStr)
 		//fmt.Println(obrStr)
 		afterFiscPrintObrStr := strings.TrimSpace(obrStr[62:])
 		if isCommandLogLine(afterFiscPrintObrStr) {
@@ -715,7 +774,7 @@ func commandHasOutputParameters(command string) bool {
 		"payment", "close_receipt": return false
 	}*/
 	switch command {
-	case "check_document_closed", "fn_query_data", "query_data", "read_device_setting":
+	case "check_document_closed", "fn_query_data", "query_data", "read_device_setting", "model_flags":
 		return true
 	}
 	return false
@@ -728,18 +787,18 @@ func isOutputFromKKTParameter(logstring string) bool {
 	return false
 }
 
-func thisLineHasNoContent(line []byte, numOfLine int) bool {
+func thisLineHasNoContent(namelogfile string, line []byte, numOfLine int) bool {
 	//                                                             62
 	//2023.11.22 14:01:21.190       T:0000DAE0 INFO  [FiscalPrinter] < LIBFPTR_PARAM_DEVICE_FFD_VERSION (65627) = 105
 	if len(line) < 62 {
-		logsmap[LOGSKIP_LINES].Println("маленький размер", "line", numOfLine, string(line))
+		logsmap[LOGSKIP_LINES].Println("logfile", namelogfile, "маленький размер", "line", numOfLine, string(line))
 		return true
 	}
 	//                                               47
 	//2023.11.22 14:01:21.190       T:0000DAE0 INFO  [FiscalPrinter] < LIBFPTR_PARAM_DEVICE_FFD_VERSION (65627) = 105
 	srCurr := line[47 : 47+len("[FiscalPrinter]")]
 	if !bytes.Equal(srCurr, []byte("[FiscalPrinter]")) {
-		logsmap[LOGSKIP_LINES].Println("нет [FP]", "line", numOfLine, "slices", string(srCurr), string(line))
+		logsmap[LOGSKIP_LINES].Println("logfile", namelogfile, "нет [FP]", "line", numOfLine, "slices", string(srCurr), string(line))
 		return true
 	}
 	//2023.11.22 14:01:21.190       T:0000DAE0 INFO  [FiscalPrinter] < LIBFPTR_PARAM_DEVICE_FFD_VERSION (65627) = 105
