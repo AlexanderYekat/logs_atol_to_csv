@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"bytes"
 	"compress/gzip"
+	"encoding/csv"
 	"errors"
 	"flag"
 	"fmt"
@@ -55,7 +56,8 @@ var dirOfAtolLogs = flag.String("diratollogs", "", "директория лог 
 var clearLogsProgramm = flag.Bool("clearlogs", true, "очистить логи программы")
 
 var LOGSDIR = "./logs/"
-var RESULTSDIR = "./results/"
+
+//var RESULTSDIR = "./results/"
 
 var filelogmap map[string]*os.File
 var logsmap map[string]*log.Logger
@@ -70,12 +72,14 @@ const LOGSKIP_LINES = "skip_line"
 const LOGOTHER = "other"
 const LOG_PREFIX = "PARSING"
 const Version_of_program = "2023_12_25_01"
+const FILE_NAME_BASE_CHECKS_HEADER = "checks_header.csv"
 
 func main() {
 	var err error
 	var descrError string
-	spisKass = make(map[string]TKassa)
-	//spisKass["1"] = TKassa{zavN: "fdfdfd"}
+
+	writeReceipt()
+	log.Fatal("sdfdsd")
 
 	runDescription := "программа версии " + Version_of_program + " парсинга лог файлов драйвера атол запущена"
 	fmt.Println(runDescription)
@@ -88,9 +92,9 @@ func main() {
 	if foundedLogDir, _ := doesFileExist(LOGSDIR); !foundedLogDir {
 		os.Mkdir(LOGSDIR, 0777)
 	}
-	if foundedLogDir, _ := doesFileExist(RESULTSDIR); !foundedLogDir {
-		os.Mkdir(RESULTSDIR, 0777)
-	}
+	//if foundedLogDir, _ := doesFileExist(RESULTSDIR); !foundedLogDir {
+	//	os.Mkdir(RESULTSDIR, 0777)
+	//}
 	filelogmap, logsmap, descrError, err = initializationLogs(*clearLogsProgramm, LOGINFO, LOGERROR, LOGSKIP_LINES, LOGOTHER)
 	defer func() {
 		fmt.Println("закрытие дескрипторов лог файлов программы")
@@ -160,13 +164,17 @@ func main() {
 func lastAssenatialActWasCloseReceipt(lastActions [LEN_QUEUE_BUFFER_LOGS_STRING]string) (res bool) {
 	res = false
 	for i := 0; i < LEN_QUEUE_BUFFER_LOGS_STRING; i++ {
+		breakFromLoop := false
 		switch lastActions[i] {
 		case "close_receipt":
 			res = true
-			break
+			breakFromLoop = true
 		case "open_shift", "cancel_receipt", "operator_login", "open_receipt", "registration",
 			"receipt_total", "payment":
 			res = false
+			breakFromLoop = true
+		}
+		if breakFromLoop {
 			break
 		}
 	}
@@ -178,7 +186,7 @@ func processingResultOfCommand(namelogfile string, numLine int, deviceId, comman
 	queueLastActs [LEN_QUEUE_BUFFER_LOGS_STRING]string,
 	parametersIn, parametersOut map[string]string,
 	registrationMap map[string]map[string]string,
-	operatorLoginMap, openReceiptMap, paymentMap map[string]string, receiptTotalMap *string) {
+	operatorLoginMap, openReceiptMap, paymentMap map[string]string, receiptTotal *string) {
 	//check_document_closed,fn_query_data,open_shift,cancel_receipt,
 	//begin_nonfiscal_document,print_text,operator_login,open_receipt,registration,
 	//receipt_total,payment,close_receipt,query_data
@@ -189,12 +197,12 @@ func processingResultOfCommand(namelogfile string, numLine int, deviceId, comman
 		clearParametersOfCommand(operatorLoginMap)
 		clearParametersOfCommand(openReceiptMap)
 		clearParametersOfCommand(paymentMap)
-		receiptTotalMap = ""
+		*receiptTotal = ""
 		for kTemp, _ := range registrationMap {
 			clearParametersOfCommand(registrationMap[kTemp])
 		}
-		for kTemp, _ := range registrationMap {
-			delete(registrpos, registrationMap)
+		for kTemp := range registrationMap {
+			delete(registrationMap, kTemp)
 		}
 	case "operator_login": //запоминаем кассира
 		fmt.Println(parametersIn["1021"]) //имя кассира
@@ -232,7 +240,7 @@ func processingResultOfCommand(namelogfile string, numLine int, deviceId, comman
 		fmt.Println(parametersIn["1212"])
 		fmt.Println(parametersIn["1214"])
 		fmt.Println(parametersIn["LIBFPTR_PARAM_MEASUREMENT_UNIT"])
-		curPos := string(len(registrpos) + 1)
+		curPos := fmt.Sprint(len(registrationMap) + 1)
 		registrationMap[curPos] = make(map[string]string)
 		for kTemp, vTemp := range parametersIn {
 			registrationMap[curPos][kTemp] = vTemp
@@ -275,7 +283,7 @@ func processingResultOfCommand(namelogfile string, numLine int, deviceId, comman
 	case "receipt_total":
 		//запоминаем сумма чека
 		fmt.Println(parametersIn["LIBFPTR_PARAM_SUM"]) //сумма чека
-		*receiptTotalMap = parametersIn["LIBFPTR_PARAM_SUM"]
+		*receiptTotal = parametersIn["LIBFPTR_PARAM_SUM"]
 	case "close_receipt": //запоминаем чек
 		//
 	case "check_document_closed":
@@ -328,14 +336,16 @@ func processingResultOfCommand(namelogfile string, numLine int, deviceId, comman
 			dateDocum := strings.TrimSpace(dateAndTimeDocum[:indSpace])
 			timeDoc := strings.TrimSpace(dateAndTimeDocum[indSpace:])
 			fmt.Println(dateDocum) //дата документа
-			fmt.Println(timeDoc)   //дата документа
+			fmt.Println(timeDoc)   //время документа
 			//проверяем спсиок последних операций, если последние операции были оперции формирования чека, то
 			if lastAssenatialActWasCloseReceipt(queueLastActs) {
 				//сохраняем последний чек на диск и очищаем буфер
+				//checkWrite()
+				//positionsOfCheckWrite
 			}
 		}
 	default:
-		fmt.Println("ererer")
+		logsmap[LOGINFO_WITHSTD].Println("logfile", namelogfile, "line", numLine, "deviceId", deviceId, "команды", command, "не будет обработана")
 	}
 }
 
@@ -365,27 +375,16 @@ func ReadAtolLogFile(atolLogFile string) (string, error) {
 	InParametersLastCommandByDeviceId = make(map[string]map[string]string)
 	OutParametersLastCommandByDeviceId = make(map[string]map[string]string)
 
-	var registrationMap map[string]map[string]string
-	var paymentMap map[string]string
-	var operatorLoginMap map[string]string
-	var openReceiptMap map[string]string
-	var receiptTotalMap string
-	registrationMap = make(map[string]map[string]string)
-	operatorLoginMap = make(map[string]string)
-	openReceiptMap = make(map[string]string)
-	paymentMap = make(map[string]string)
-	receiptTotalMap = ""
-
-	/*var registrationMapByDeviceId map[string]map[string]map[string]string
-	var paymentMapDeviceId map[string]map[string]map[string]string
-	var operatorLoginMapDeviceId map[string]map[string]string
-	var openReceiptMapDeviceId map[string]map[string]string
-	var receiptTotalMapDeviceId map[string]map[string]string
+	var registrationMapByDeviceId map[string]map[string]map[string]string //deviceId, номер позиции, параметры позиции
+	var paymentMapByDeviceId map[string]map[string]string                 //drviceId, тип оплаты, сумма
+	var operatorLoginMapByDeviceId map[string]map[string]string           //deviceId, имя параметра, значение
+	var openReceiptMapByDeviceId map[string]map[string]string             //deviceId, имя параметра, значение
+	var receiptTotalMapByDeviceId map[string]*string                      //deviceId, сумма чека
 	registrationMapByDeviceId = make(map[string]map[string]map[string]string)
-	paymentMapDeviceId = make(map[string]map[string]map[string]string)
-	operatorLoginMapDeviceId = make(map[string]map[string]string)
-	openReceiptMapDeviceId = make(map[string]map[string]string)
-	receiptTotalMapDeviceId = make(map[string]map[string]string)*/
+	operatorLoginMapByDeviceId = make(map[string]map[string]string)
+	openReceiptMapByDeviceId = make(map[string]map[string]string)
+	paymentMapByDeviceId = make(map[string]map[string]string)
+	receiptTotalMapByDeviceId = make(map[string]*string)
 
 	//csv файл чеков
 	//flagsTempOpen := os.O_APPEND | os.O_CREATE | os.O_WRONLY
@@ -469,11 +468,27 @@ func ReadAtolLogFile(atolLogFile string) (string, error) {
 				} else { //
 					//запускаем обработку результата
 					if currDeviceId != "" {
+						if _, ok := registrationMapByDeviceId[currDeviceId]; !ok {
+							registrationMapByDeviceId[currDeviceId] = make(map[string]map[string]string)
+						}
+						if _, ok := paymentMapByDeviceId[currDeviceId]; !ok {
+							paymentMapByDeviceId[currDeviceId] = make(map[string]string)
+						}
+						if _, ok := operatorLoginMapByDeviceId[currDeviceId]; !ok {
+							operatorLoginMapByDeviceId[currDeviceId] = make(map[string]string)
+						}
+						if _, ok := openReceiptMapByDeviceId[currDeviceId]; !ok {
+							openReceiptMapByDeviceId[currDeviceId] = make(map[string]string)
+						}
+						if _, ok := receiptTotalMapByDeviceId[currDeviceId]; !ok {
+							receiptTotalMapByDeviceId[currDeviceId] = new(string)
+						}
 						processingResultOfCommand(shortFileNameLog, currNumLine, currDeviceId,
 							QueueLastRightCommandsByDeviceId[currDeviceId][0],
 							*QueueLastRightCommandsByDeviceId[currDeviceId], InParametersLastCommandByDeviceId[currDeviceId],
-							OutParametersLastCommandByDeviceId[currDeviceId], registrationMap, paymentMap,
-							operatorLoginMap, openReceiptMap, &receiptTotalMap)
+							OutParametersLastCommandByDeviceId[currDeviceId], registrationMapByDeviceId[currDeviceId],
+							paymentMapByDeviceId[currDeviceId], operatorLoginMapByDeviceId[currDeviceId],
+							openReceiptMapByDeviceId[currDeviceId], receiptTotalMapByDeviceId[currDeviceId])
 					}
 				}
 			} else {
@@ -513,12 +528,29 @@ func ReadAtolLogFile(atolLogFile string) (string, error) {
 				gettingOutParameters = false
 				//запускаем обработку результата
 				if currDeviceId != "" {
+					if _, ok := registrationMapByDeviceId[currDeviceId]; !ok {
+						registrationMapByDeviceId[currDeviceId] = make(map[string]map[string]string)
+					}
+					if _, ok := paymentMapByDeviceId[currDeviceId]; !ok {
+						paymentMapByDeviceId[currDeviceId] = make(map[string]string)
+					}
+					if _, ok := operatorLoginMapByDeviceId[currDeviceId]; !ok {
+						operatorLoginMapByDeviceId[currDeviceId] = make(map[string]string)
+					}
+					if _, ok := openReceiptMapByDeviceId[currDeviceId]; !ok {
+						openReceiptMapByDeviceId[currDeviceId] = make(map[string]string)
+					}
+					if _, ok := receiptTotalMapByDeviceId[currDeviceId]; !ok {
+						receiptTotalMapByDeviceId[currDeviceId] = new(string)
+					}
 					processingResultOfCommand(shortFileNameLog, currNumLine, currDeviceId,
 						QueueLastRightCommandsByDeviceId[currDeviceId][0],
 						*QueueLastRightCommandsByDeviceId[currDeviceId],
 						InParametersLastCommandByDeviceId[currDeviceId],
 						OutParametersLastCommandByDeviceId[currDeviceId],
-						registrationMap, paymentMap, operatorLoginMap, openReceiptMap, &receiptTotalMap)
+						registrationMapByDeviceId[currDeviceId],
+						paymentMapByDeviceId[currDeviceId], operatorLoginMapByDeviceId[currDeviceId],
+						openReceiptMapByDeviceId[currDeviceId], receiptTotalMapByDeviceId[currDeviceId])
 				}
 			}
 		}
@@ -830,4 +862,22 @@ func getDeviceIdofCommand(shortLineOfLog string) string {
 	}
 	deviceIdStr := rightObrStr[:indZakrSc]
 	return deviceIdStr
+}
+
+func writeReceipt() {
+	//csv файл чеков
+	flagsTempOpen := os.O_APPEND | os.O_CREATE | os.O_WRONLY
+	//flagsTempOpen := os.O_TRUNC | os.O_CREATE | os.O_WRONLY
+	file_checks, err := os.OpenFile(FILE_NAME_BASE_CHECKS_HEADER, flagsTempOpen, 0644)
+	if err != nil {
+		descrError := fmt.Sprintf("ошибка создания файла чеков %v", err)
+		logsmap[LOGERROR].Println(descrError)
+		//return descrError, err
+	}
+	defer file_checks.Close()
+	csv_checks := csv.NewWriter(file_checks)
+	csv_checks.Comma = ';'
+	s := []string{"1 pos", "2 позиция"}
+	csv_checks.Write(s)
+	defer csv_checks.Flush()
 }
