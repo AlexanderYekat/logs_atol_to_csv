@@ -147,12 +147,30 @@ func main() {
 		logsmap[LOGINFO_WITHSTD].Printf("%v = %v\n", k+1, currFullFileName)
 	}
 	countOfFiles = len(listOfFiles)
-	logsmap[LOGINFO_WITHSTD].Println("всего файлов лог файлов для обработки", countOfFiles)
+	//инициализация базы чеков
+	logsmap[LOGINFO_WITHSTD].Println("инициализация базы чеков")
+	//очистка, создание переменной записи
+	//os.Truncate(FILE_NAME_BASE_CHECKS_HEADER, 0)
+	//csv файл чеков
+	//flagsTempOpen := os.O_APPEND | os.O_CREATE | os.O_WRONLY
+	flagsTempOpen := os.O_TRUNC | os.O_CREATE | os.O_WRONLY
+	file_checks_header, err := os.OpenFile(FILE_NAME_BASE_CHECKS_HEADER, flagsTempOpen, 0644)
+	if err != nil {
+		descrError := fmt.Sprintf("ошибка создания файла чеков %v", err)
+		logsmap[LOGERROR].Println(descrError)
+		log.Panic("ошибка инициализации реузльтрующего файла чеков", descrError)
+	}
+	defer file_checks_header.Close()
+	csv_checks_header := csv.NewWriter(file_checks_header)
+	csv_checks_header.Comma = ';'
+	defer csv_checks_header.Flush()
+
 	//перебор лог файлов и обработка
+	logsmap[LOGINFO_WITHSTD].Println("всего файлов лог файлов для обработки", countOfFiles)
 	for k, v := range listOfFiles {
 		currFullFileName := v
 		logsmap[LOGINFO_WITHSTD].Printf("обработка %v %v", k+1, currFullFileName)
-		descrpErr, err := ReadAtolLogFile(currFullFileName)
+		descrpErr, err := ReadAtolLogFile(currFullFileName, csv_checks_header)
 		if err != nil {
 			logsmap[LOGERROR].Println(descrpErr)
 		}
@@ -186,10 +204,12 @@ func processingResultOfCommand(namelogfile string, numLine int, deviceId, comman
 	queueLastActs [LEN_QUEUE_BUFFER_LOGS_STRING]string,
 	parametersIn, parametersOut map[string]string,
 	registrationMap map[string]map[string]string,
-	operatorLoginMap, openReceiptMap, paymentMap map[string]string, receiptTotal *string) {
+	operatorLoginMap, openReceiptMap, paymentMap map[string]string, receiptTotal *string) (map[string]string,
+	string, error) {
 	//check_document_closed,fn_query_data,open_shift,cancel_receipt,
 	//begin_nonfiscal_document,print_text,operator_login,open_receipt,registration,
 	//receipt_total,payment,close_receipt,query_data
+	reslHeaderReciept := make(map[string]string)
 	logsmap[LOGOTHER].Println("logfile", namelogfile, "line", numLine, "deviceId", deviceId, "оброботка команды", command, "с входными параметрами", parametersIn, "и выходными", parametersOut)
 	switch command {
 	case "cancel_receipt":
@@ -340,6 +360,31 @@ func processingResultOfCommand(namelogfile string, numLine int, deviceId, comman
 			//проверяем спсиок последних операций, если последние операции были оперции формирования чека, то
 			if lastAssenatialActWasCloseReceipt(queueLastActs) {
 				//сохраняем последний чек на диск и очищаем буфер
+				//шапка чека
+				reslHeaderReciept["deviceId"]
+				reslHeaderReciept["factoryNum"]
+				reslHeaderReciept["regNum"]
+				reslHeaderReciept["FNNum"]
+				reslHeaderReciept["INN"]
+				reslHeaderReciept["name"]
+				reslHeaderReciept["place"]
+				reslHeaderReciept["cashier"]
+				reslHeaderReciept["FD"]
+				reslHeaderReciept["FP"]
+				reslHeaderReciept["date"]
+				reslHeaderReciept["time"]
+				reslHeaderReciept["OSN"]
+				reslHeaderReciept["typeReciept"]
+				reslHeaderReciept["thereStamps"]
+				reslHeaderReciept["summ"]
+				reslHeaderReciept["nal"]
+				reslHeaderReciept["beznal"]
+				reslHeaderReciept["credit"]
+				reslHeaderReciept["avance"]
+				reslHeaderReciept["predstav"]
+				reslHeaderReciept["6pay"]
+				reslHeaderReciept["7pay"]
+				reslHeaderReciept["8pay"]
 				//checkWrite()
 				//positionsOfCheckWrite
 			}
@@ -347,9 +392,10 @@ func processingResultOfCommand(namelogfile string, numLine int, deviceId, comman
 	default:
 		logsmap[LOGINFO_WITHSTD].Println("logfile", namelogfile, "line", numLine, "deviceId", deviceId, "команды", command, "не будет обработана")
 	}
+	return reslHeaderReciept, "", nil
 }
 
-func ReadAtolLogFile(atolLogFile string) (string, error) {
+func ReadAtolLogFile(atolLogFile string, baseReceiptHeader *csv.Writer) (string, error) {
 	//var deviceIdSerialNumber map[string]string
 	//var deviceIdRegNumber map[string]string
 	//var deviceIdSerialFN map[string]string
@@ -483,12 +529,14 @@ func ReadAtolLogFile(atolLogFile string) (string, error) {
 						if _, ok := receiptTotalMapByDeviceId[currDeviceId]; !ok {
 							receiptTotalMapByDeviceId[currDeviceId] = new(string)
 						}
-						processingResultOfCommand(shortFileNameLog, currNumLine, currDeviceId,
+						headerReceipt, errodDiscr, err := processingResultOfCommand(shortFileNameLog, currNumLine, currDeviceId,
 							QueueLastRightCommandsByDeviceId[currDeviceId][0],
 							*QueueLastRightCommandsByDeviceId[currDeviceId], InParametersLastCommandByDeviceId[currDeviceId],
 							OutParametersLastCommandByDeviceId[currDeviceId], registrationMapByDeviceId[currDeviceId],
 							paymentMapByDeviceId[currDeviceId], operatorLoginMapByDeviceId[currDeviceId],
 							openReceiptMapByDeviceId[currDeviceId], receiptTotalMapByDeviceId[currDeviceId])
+
+						writeRecordOfReceipt(shortFileNameLog, currNumLine, currDeviceId, baseReceiptHeader)
 					}
 				}
 			} else {
@@ -865,6 +913,7 @@ func getDeviceIdofCommand(shortLineOfLog string) string {
 }
 
 func writeReceipt() {
+	os.Truncate(FILE_NAME_BASE_CHECKS_HEADER, 0)
 	//csv файл чеков
 	flagsTempOpen := os.O_APPEND | os.O_CREATE | os.O_WRONLY
 	//flagsTempOpen := os.O_TRUNC | os.O_CREATE | os.O_WRONLY
@@ -880,4 +929,19 @@ func writeReceipt() {
 	s := []string{"1 pos", "2 позиция"}
 	csv_checks.Write(s)
 	defer csv_checks.Flush()
+}
+
+func writeRecordOfReceipt(namelogfile string, numLine int, deviceId string, baseReceiptHeader *csv.Writer,
+	checkHeader map[string]string) (string, error) {
+	var recordCheck []string
+	recordCheck = make([]string, len(checkHeader))
+	for _, v := range checkHeader {
+		recordCheck = append(recordCheck, v)
+	}
+	err := baseReceiptHeader.Write(recordCheck)
+	if err != nil {
+		decrError := fmt.Sprintf("ошибка записи в базу информации о чеке. Ошибка: %v", err)
+		logsmap[LOGERROR].Println("logfile", namelogfile, "line", numLine, "deviceId", deviceId, decrError)
+		return decrError, err
+	}
 }
