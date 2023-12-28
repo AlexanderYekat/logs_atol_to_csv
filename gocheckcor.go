@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/csv"
-	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -21,37 +20,6 @@ import (
 	"strings"
 )
 
-type TCompany struct {
-	inn, name string
-}
-
-type TKassa struct {
-	zavN, regN, fnRegN, place string
-	firm                      *TCompany
-	nextKass                  *TKassa
-}
-
-type TCheck struct {
-	kassir, numFD, FP, dataOfDoc, timeOfDoc           string
-	summ, nalSumm, bezSumm, avSumm, krSumm, predsSumm float64
-	kassa                                             *TKassa
-	osn                                               int
-	Positions                                         *TPositionsCheck
-}
-
-type TPositionsCheck struct {
-	check     *TCheck
-	FirtPosit *TPositionCheck
-}
-
-type TPositionCheck struct {
-	Positions                                 *TPositionCheck
-	name                                      string
-	quant, price, summ                        float64
-	predmRasch, sposobRash, stavkaNDS, edinic int
-	nextPosition                              *TPositionCheck
-}
-
 var dirOfAtolLogs = flag.String("diratollogs", "", "директория лог фалов атол по умолчанию %appdata%\\AppData\\ATOL\\drivers10\\logs")
 var clearLogsProgramm = flag.Bool("clearlogs", true, "очистить логи программы")
 
@@ -61,8 +29,6 @@ var LOGSDIR = "./logs/"
 
 var filelogmap map[string]*os.File
 var logsmap map[string]*log.Logger
-
-var spisKass map[string]TKassa
 
 const LEN_QUEUE_BUFFER_LOGS_STRING = 50
 const LOGINFO = "info"
@@ -79,9 +45,6 @@ const FILE_NAME_BASE_CHECKS_POSITIONS = "checks_posits.csv"
 func main() {
 	var err error
 	var descrError string
-
-	writeReceipt()
-	log.Fatal("sdfdsd")
 
 	runDescription := "программа версии " + Version_of_program + " парсинга лог файлов драйвера атол запущена"
 	fmt.Println(runDescription)
@@ -109,7 +72,7 @@ func main() {
 	}()
 	if err != nil {
 		descrMistake := fmt.Sprintf("ошибка инициализации лог файлов %v", descrError)
-		fmt.Fprintf(os.Stderr, descrMistake)
+		fmt.Fprint(os.Stderr, descrMistake)
 		log.Panic(descrMistake)
 	}
 	fmt.Println("лог файлы инициализированы в папке " + LOGSDIR)
@@ -166,6 +129,16 @@ func main() {
 	defer file_checks_header.Close()
 	csv_checks_header := csv.NewWriter(file_checks_header)
 	csv_checks_header.Comma = ';'
+	fieldsCsvHeader := []string{"deviceId", "factoryNum", "regNum", "fn", "ffdstr", "ffdint", "ffdtag",
+		"INN", "name", "place", "cashier", "FD", "FP", "dateandtime", "date", "time", "OSN",
+		"typeReciept", "typeofcorrection", "datecorrection", "documNumofCorrection", "thereMarks",
+		"summ", "nal", "beznal", "avance", "credit", "predstav", "6pay", "7pay", "8pay", "9pay", "10pay"}
+	err = csv_checks_header.Write(fieldsCsvHeader)
+	if err != nil {
+		descrError := fmt.Sprintf("ошибка записи заголовка файла шапки чеков %v", err)
+		logsmap[LOGERROR].Println(descrError)
+		log.Panic(descrError)
+	}
 	defer csv_checks_header.Flush()
 
 	logsmap[LOGINFO_WITHSTD].Println("инициализация таблицы позиций чеков")
@@ -174,11 +147,21 @@ func main() {
 	if err != nil {
 		descrError := fmt.Sprintf("ошибка создания файла позиций чеков %v", err)
 		logsmap[LOGERROR].Println(descrError)
-		log.Panic("ошибка инициализации реузльтрующего файла  позиций чеков", descrError)
+		log.Panic("ошибка инициализации реузльтрующего файла позиций чеков", descrError)
 	}
 	defer file_checks_positions.Close()
 	csv_checks_positions := csv.NewWriter(file_checks_positions)
 	csv_checks_positions.Comma = ';'
+	fieldsCsvPosit := []string{"name", "price", "quantity", "mera", "amount", "predm", "sposob",
+		"stavka", "buyername", "buyerinn", "agent", "addressagent", "innagent", "nameagent",
+		"telephagent", "telephoperpriem", "telephoperperev", "innspl", "namespl",
+		"makr", "statusofmark", "validationofmark", "processingmodeofmark"}
+	err = csv_checks_positions.Write(fieldsCsvPosit)
+	if err != nil {
+		descrError := fmt.Sprintf("ошибка записи заголовка файла позиций чеков %v", err)
+		logsmap[LOGERROR].Println(descrError)
+		log.Panic(descrError)
+	}
 	defer csv_checks_positions.Flush()
 
 	//перебор лог файлов и обработка
@@ -227,7 +210,8 @@ func processingResultOfCommand(namelogfile string, numLine int, deviceId string,
 	//receipt_total,payment,close_receipt,query_data
 	var reslHeaderReciept map[string]string
 	var reslRegistrReciept map[string]map[string]string
-	logsmap[LOGOTHER].Println("logfile", namelogfile, "line", numLine, "deviceId", deviceId, "оброботка команды", command, "с входными параметрами", parametersIn, "и выходными", parametersOut)
+	logsmap[LOGOTHER].Println("logfile", namelogfile, "line", numLine, "deviceId", deviceId,
+		"zavNum", deviceMap["zavNum"], "оброботка команды", command, "с входными параметрами", parametersIn, "и выходными", parametersOut)
 	switch command {
 	case "cancel_receipt":
 		//очищаем информацию об кассирах, осн, типа чека, регистрациях, оплатах и суммах
@@ -235,7 +219,7 @@ func processingResultOfCommand(namelogfile string, numLine int, deviceId string,
 		clearParametersOfCommand(openReceiptMap)
 		clearParametersOfCommand(paymentMap)
 		*receiptTotal = ""
-		for kTemp, _ := range registrationMap {
+		for kTemp := range registrationMap {
 			clearParametersOfCommand(registrationMap[kTemp])
 		}
 		for kTemp := range registrationMap {
@@ -308,7 +292,7 @@ func processingResultOfCommand(namelogfile string, numLine int, deviceId string,
 				prevSummOfPayment = summTemp
 			} else {
 				logsmap[LOGERROR].Println("logfile", namelogfile, "line", numLine, "deviceId", deviceId,
-					"оброботка команды", command, "ошибка (%v) парсинга уже имеющейся суммы %v оплаты (тип оплаты %v)", err, prevSummOfPaymentStr, typeOfPaymentTemp)
+					"zavNum", deviceMap["zavNum"], "оброботка команды", command, "ошибка (%v) парсинга уже имеющейся суммы %v оплаты (тип оплаты %v)", err, prevSummOfPaymentStr, typeOfPaymentTemp)
 			}
 		}
 		if prevSummOfPaymentStr != "" {
@@ -317,7 +301,7 @@ func processingResultOfCommand(namelogfile string, numLine int, deviceId string,
 				currSummOfPayment = summTemp
 			} else {
 				logsmap[LOGERROR].Println("logfile", namelogfile, "line", numLine, "deviceId", deviceId,
-					"оброботка команды", command, "ошибка (%v) парсинга текщей суммы %v оплаты (тип оплаты %v)", err, currSummStr, typeOfPaymentTemp)
+					"zavNum", deviceMap["zavNum"], "оброботка команды", command, "ошибка (%v) парсинга текщей суммы %v оплаты (тип оплаты %v)", err, currSummStr, typeOfPaymentTemp)
 			}
 			newSummOfPay := prevSummOfPayment + currSummOfPayment
 			newSummOfPayStr = fmt.Sprint(newSummOfPay)
@@ -442,7 +426,7 @@ func processingResultOfCommand(namelogfile string, numLine int, deviceId string,
 					reslHeaderReciept["summ"] = *receiptTotal
 				} else {
 					reslHeaderReciept["summ"] = getSummStrFromRegistrationMap(namelogfile, numLine, deviceId,
-						deviceMap, command, registrationMap, parametersOut["LIBFPTR_PARAM_DOCUMENT_NUMBER"])
+						deviceMap["zavNum"], command, registrationMap, parametersOut["LIBFPTR_PARAM_DOCUMENT_NUMBER"])
 				}
 				reslHeaderReciept["nal"] = paymentMap["0"]
 				reslHeaderReciept["beznal"] = paymentMap["1"]
@@ -491,7 +475,8 @@ func processingResultOfCommand(namelogfile string, numLine int, deviceId string,
 			}
 		}
 	default:
-		logsmap[LOGINFO_WITHSTD].Println("logfile", namelogfile, "line", numLine, "deviceId", deviceId, "команды", command, "не будет обработана")
+		logsmap[LOGINFO_WITHSTD].Println("logfile", namelogfile, "line", numLine, "deviceId", deviceId,
+			"zavNum", deviceMap["zavNum"], "команды", command, "не будет обработана")
 	}
 	return reslHeaderReciept, reslRegistrReciept, "", nil
 }
@@ -512,10 +497,8 @@ func ReadAtolLogFile(atolLogFile string, baseReceiptHeader, baseReceiptPostions 
 	var QueueLastCommands [LEN_QUEUE_BUFFER_LOGS_STRING]string
 	var QueueLastRightCommands [LEN_QUEUE_BUFFER_LOGS_STRING]string
 
-	var QueueLastCommandsByDeviceId map[string]*[LEN_QUEUE_BUFFER_LOGS_STRING]string
-	QueueLastCommandsByDeviceId = make(map[string]*[LEN_QUEUE_BUFFER_LOGS_STRING]string)
-	var QueueLastRightCommandsByDeviceId map[string]*[LEN_QUEUE_BUFFER_LOGS_STRING]string
-	QueueLastRightCommandsByDeviceId = make(map[string]*[LEN_QUEUE_BUFFER_LOGS_STRING]string)
+	QueueLastCommandsByDeviceId := make(map[string]*[LEN_QUEUE_BUFFER_LOGS_STRING]string)
+	QueueLastRightCommandsByDeviceId := make(map[string]*[LEN_QUEUE_BUFFER_LOGS_STRING]string)
 
 	var InParametersLastCommandByDeviceId map[string]map[string]string
 	var OutParametersLastCommandByDeviceId map[string]map[string]string
@@ -720,9 +703,11 @@ func ReadAtolLogFile(atolLogFile string, baseReceiptHeader, baseReceiptPostions 
 						logsmap[LOGERROR].Println(descrError)
 					} else {
 						if len(headerReceipt) > 0 {
-							writeRecordOfReceipt(shortFileNameLog, currNumLine, currDeviceId, baseReceiptHeader, headerReceipt)
+							writeRecordOfReceipt(shortFileNameLog, currNumLine, currDeviceId,
+								deviceMapByDeviceId[currDeviceId]["zavNum"], baseReceiptHeader, headerReceipt)
 							if len(postionsReceipt) > 0 {
 								writeRecordsOfRegistartionReceipt(shortFileNameLog, currNumLine, currDeviceId,
+									deviceMapByDeviceId[currDeviceId]["zavNum"],
 									baseReceiptPostions, postionsReceipt, headerReceipt)
 							} else {
 								descrAlgorith := fmt.Sprintf("при обработке комманды %v (фомрировании чека) в лог файле %v атол в строке %v полчилось, что у чека нет позиций", QueueLastRightCommandsByDeviceId[currDeviceId][0], shortFileNameLog, currNumLine)
@@ -792,7 +777,7 @@ func GetAllParametersCurrentCommand(QueueStrings [LEN_QUEUE_BUFFER_LOGS_STRING]s
 		}
 	} //перебор всех параметров команды
 	return parametersCommand
-}
+} //GetAllParametersCurrentCommand
 
 func listDirByReadDir(path string) ([]string, error) {
 	var spisFiles []string
@@ -835,7 +820,7 @@ func listDirByReadDir(path string) ([]string, error) {
 		}
 	}
 	return spisFiles, nil
-}
+} //listDirByReadDir
 
 func UserHomeDir() string {
 	if runtime.GOOS == "windows" {
@@ -892,19 +877,6 @@ func intitLog(logFile string, pref string, clearLogs bool) (*os.File, *log.Logge
 	return f, loger, nil
 }
 
-func ScannerToReader(scanner *bufio.Scanner) io.Reader {
-	reader, writer := io.Pipe()
-
-	go func() {
-		defer writer.Close()
-		for scanner.Scan() {
-			writer.Write(scanner.Bytes())
-		}
-	}()
-
-	return reader
-}
-
 func DecompressFile(fileName string) (string, string, error) {
 	newFileName := strings.TrimSuffix(fileName, filepath.Ext(fileName))
 	gzippedFile, err := os.Open(fileName)
@@ -928,7 +900,7 @@ func DecompressFile(fileName string) (string, string, error) {
 	}
 	_, err = io.Copy(uncompressedFile, gzipReader)
 	if err != nil {
-		descrError := fmt.Sprintf("ошибка копирования буфера (разархивирования) файла %v c ошибкой: ", fileName, err)
+		descrError := fmt.Sprintf("ошибка копирования буфера (разархивирования) файла %v c ошибкой: %v", fileName, err)
 		logsmap[LOGERROR].Println(descrError)
 		return newFileName, descrError, err
 	}
@@ -943,12 +915,7 @@ func doesFileExist(fullFileName string) (found bool, err error) {
 	if _, err = os.Stat(fullFileName); err == nil {
 		// path/to/whatever exists
 		found = true
-		//fmt.Println("true")
-	} else if errors.Is(err, os.ErrNotExist) {
-		// path/to/whatever does *not* exist
-		//fmt.Println("false")
 	}
-	//fmt.Println(err)
 	return
 }
 
@@ -965,10 +932,7 @@ func isResultExecCommand(logstring string) bool {
 
 // это строка команды
 func isCommandLogLine(logstring string) bool {
-	if logstring[:7] == "libfptr" {
-		return true
-	}
-	return false
+	return logstring[:7] == "libfptr"
 }
 
 func isCommandWasExecSuссess(logstring string) bool {
@@ -992,10 +956,7 @@ func commandHasOutputParameters(command string) bool {
 }
 
 func isOutputFromKKTParameter(logstring string) bool {
-	if logstring[0:1] == "<" {
-		return true
-	}
-	return false
+	return logstring[0:1] == "<"
 }
 
 func thisLineHasNoContent(namelogfile string, line []byte, numOfLine int) bool {
@@ -1017,10 +978,7 @@ func thisLineHasNoContent(namelogfile string, line []byte, numOfLine int) bool {
 	//дата,время,что-то еще,тип сообщения,тип оборудования,напровление (>на кассу,<из кассы),команда, id команды, знак равно, значение команды
 	//2023.11.22 14:01:21.190       T:0000DAE0 INFO  [FiscalPrinter] < LIBFPTR_PARAM_DEVICE_FFD_VERSION (65627) = 105
 	afterFiscPrint := strings.TrimSpace(string(line[62:]))
-	if len(afterFiscPrint) < 9 {
-		return true
-	}
-	return false
+	return len(afterFiscPrint) < 9
 }
 
 func getDeviceIdofCommand(shortLineOfLog string) string {
@@ -1043,29 +1001,9 @@ func getDeviceIdofCommand(shortLineOfLog string) string {
 	return deviceIdStr
 }
 
-func writeReceipt() {
-	os.Truncate(FILE_NAME_BASE_CHECKS_HEADER, 0)
-	//csv файл чеков
-	flagsTempOpen := os.O_APPEND | os.O_CREATE | os.O_WRONLY
-	//flagsTempOpen := os.O_TRUNC | os.O_CREATE | os.O_WRONLY
-	file_checks, err := os.OpenFile(FILE_NAME_BASE_CHECKS_HEADER, flagsTempOpen, 0644)
-	if err != nil {
-		descrError := fmt.Sprintf("ошибка создания файла чеков %v", err)
-		logsmap[LOGERROR].Println(descrError)
-		//return descrError, err
-	}
-	defer file_checks.Close()
-	csv_checks := csv.NewWriter(file_checks)
-	csv_checks.Comma = ';'
-	s := []string{"1 pos", "2 позиция"}
-	csv_checks.Write(s)
-	defer csv_checks.Flush()
-}
-
-func writeRecordOfReceipt(namelogfile string, numLine int, deviceId string, baseReceiptHeader *csv.Writer,
+func writeRecordOfReceipt(namelogfile string, numLine int, deviceId string, zavNum string, baseReceiptHeader *csv.Writer,
 	checkHeader map[string]string) (string, error) {
-	var recordCheck []string
-	recordCheck = make([]string, len(checkHeader))
+	recordCheck := make([]string, len(checkHeader))
 	indField := 0
 	for _, v := range checkHeader {
 		recordCheck[indField] = v
@@ -1074,12 +1012,14 @@ func writeRecordOfReceipt(namelogfile string, numLine int, deviceId string, base
 	err := baseReceiptHeader.Write(recordCheck)
 	if err != nil {
 		decrError := fmt.Sprintf("ошибка записи в базу информации о чеке. Ошибка: %v", err)
-		logsmap[LOGERROR].Println("logfile", namelogfile, "line", numLine, "deviceId", deviceId, decrError)
+		logsmap[LOGERROR].Println("logfile", namelogfile, "line", numLine, "deviceId", deviceId,
+			"zavNum", zavNum, decrError)
 		return decrError, err
 	}
+	return "", nil
 }
 
-func writeRecordsOfRegistartionReceipt(namelogfile string, numLine int, deviceId string,
+func writeRecordsOfRegistartionReceipt(namelogfile string, numLine int, deviceId string, zavNum string,
 	baseReceiptPostions *csv.Writer, postionsReceipt map[string]map[string]string, checkHeader map[string]string) (string, error) {
 	var recordPosition []string
 
@@ -1104,10 +1044,12 @@ func writeRecordsOfRegistartionReceipt(namelogfile string, numLine int, deviceId
 		err := baseReceiptPostions.Write(recordPosition)
 		if err != nil {
 			decrError := fmt.Sprintf("ошибка записи в базу позиции %v чека. Ошибка: %v", numPos, err)
-			logsmap[LOGERROR].Println("logfile", namelogfile, "line", numLine, "deviceId", deviceId, decrError)
+			logsmap[LOGERROR].Println("logfile", namelogfile, "line", numLine, "deviceId", deviceId,
+				"zavNum", zavNum, decrError)
 			return decrError, err
 		}
 	}
+	return "", nil
 }
 
 func registrationMapHaveMarks(registrationMap map[string]map[string]string) bool {
@@ -1122,7 +1064,7 @@ func registrationMapHaveMarks(registrationMap map[string]map[string]string) bool
 }
 
 func getSummStrFromRegistrationMap(namelogfile string, numLine int, deviceId string,
-	deviceMap map[string]string, command string, registrationMap map[string]map[string]string, checkNumber string) string {
+	zavNum string, command string, registrationMap map[string]map[string]string, checkNumber string) string {
 	var currSumm float64
 	var totalSumm float64
 	res := "0"
@@ -1136,7 +1078,7 @@ func getSummStrFromRegistrationMap(namelogfile string, numLine int, deviceId str
 			descrErr := fmt.Sprintf("ошибка (%v) парсинга суммы %v в %v позиции чека №%v",
 				err, currSummStr, numPos, checkNumber)
 			logsmap[LOGERROR].Println("logfile", namelogfile, "line", numLine, "deviceId", deviceId,
-				"zavNum", deviceMap["zavNum"], "оброботка команды", command, descrErr)
+				"zavNum", zavNum, "оброботка команды", command, descrErr)
 		}
 		totalSumm = totalSumm + currSumm
 	}
