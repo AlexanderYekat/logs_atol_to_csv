@@ -42,6 +42,9 @@ const Version_of_program = "2023_12_25_01"
 const FILE_NAME_BASE_CHECKS_HEADER = "checks_header.csv"
 const FILE_NAME_BASE_CHECKS_POSITIONS = "checks_posits.csv"
 
+var fieldsHeaderRes []string
+var fieldsPositionsRes []string
+
 func main() {
 	var err error
 	var descrError string
@@ -129,17 +132,19 @@ func main() {
 	defer file_checks_header.Close()
 	csv_checks_header := csv.NewWriter(file_checks_header)
 	csv_checks_header.Comma = ';'
-	fieldsCsvHeader := []string{"deviceId", "factoryNum", "regNum", "fn", "ffdstr", "ffdint", "ffdtag",
+	fieldsHeaderRes = []string{"deviceId", "factoryNum", "regNum", "fn", "ffdstr", "ffdint", "ffdtag",
 		"INN", "name", "place", "cashier", "FD", "FP", "dateandtime", "date", "time", "OSN",
 		"typeReciept", "typeofcorrection", "datecorrection", "documNumofCorrection", "thereMarks",
 		"summ", "nal", "beznal", "avance", "credit", "predstav", "6pay", "7pay", "8pay", "9pay", "10pay"}
-	err = csv_checks_header.Write(fieldsCsvHeader)
+	err = csv_checks_header.Write(fieldsHeaderRes)
 	if err != nil {
 		descrError := fmt.Sprintf("ошибка записи заголовка файла шапки чеков %v", err)
 		logsmap[LOGERROR].Println(descrError)
 		log.Panic(descrError)
 	}
-	defer csv_checks_header.Flush()
+	//defer csv_checks_header.Flush()
+	//csv_checks_header.Flush()
+	//file_checks_header.Close()
 
 	logsmap[LOGINFO_WITHSTD].Println("инициализация таблицы позиций чеков")
 	flagsTempOpen = os.O_TRUNC | os.O_CREATE | os.O_WRONLY
@@ -152,17 +157,18 @@ func main() {
 	defer file_checks_positions.Close()
 	csv_checks_positions := csv.NewWriter(file_checks_positions)
 	csv_checks_positions.Comma = ';'
-	fieldsCsvPosit := []string{"name", "price", "quantity", "mera", "amount", "predm", "sposob",
+
+	fieldsPositionsRes = []string{"INN", "factoryNum", "fn", "FD", "summ", "name", "price", "quantity", "mera", "amount", "predm", "sposob",
 		"stavka", "buyername", "buyerinn", "agent", "addressagent", "innagent", "nameagent",
 		"telephagent", "telephoperpriem", "telephoperperev", "innspl", "namespl",
 		"makr", "statusofmark", "validationofmark", "processingmodeofmark"}
-	err = csv_checks_positions.Write(fieldsCsvPosit)
+	err = csv_checks_positions.Write(fieldsPositionsRes)
 	if err != nil {
 		descrError := fmt.Sprintf("ошибка записи заголовка файла позиций чеков %v", err)
 		logsmap[LOGERROR].Println(descrError)
 		log.Panic(descrError)
 	}
-	defer csv_checks_positions.Flush()
+	//defer csv_checks_positions.Flush()
 
 	//перебор лог файлов и обработка
 	logsmap[LOGINFO_WITHSTD].Println("всего файлов лог файлов для обработки", countOfFiles)
@@ -174,6 +180,8 @@ func main() {
 			logsmap[LOGERROR].Println(errorDescr)
 		}
 	}
+	csv_checks_positions.Flush()
+	csv_checks_header.Flush()
 	//обработка лог файла
 	log.Fatal("штатный выход")
 }
@@ -212,6 +220,7 @@ func processingResultOfCommand(namelogfile string, numLine int, deviceId string,
 	var reslRegistrReciept map[string]map[string]string
 	logsmap[LOGOTHER].Println("logfile", namelogfile, "line", numLine, "deviceId", deviceId,
 		"zavNum", deviceMap["zavNum"], "оброботка команды", command, "с входными параметрами", parametersIn, "и выходными", parametersOut)
+	//return reslHeaderReciept, reslRegistrReciept, "", nil
 	switch command {
 	case "cancel_receipt":
 		//очищаем информацию об кассирах, осн, типа чека, регистрациях, оплатах и суммах
@@ -226,15 +235,15 @@ func processingResultOfCommand(namelogfile string, numLine int, deviceId string,
 			delete(registrationMap, kTemp)
 		}
 	case "operator_login": //запоминаем кассира
-		fmt.Println(parametersIn["1021"]) //имя кассира
-		fmt.Println(parametersIn["1203"]) //ИНН кассира
+		//fmt.Println(parametersIn["1021"]) //имя кассира
+		//fmt.Println(parametersIn["1203"]) //ИНН кассира
 		for kTemp, vTemp := range parametersIn {
 			operatorLoginMap[kTemp] = vTemp
 		}
 	case "open_receipt": //запоминаем тип чека и систему налогообложения
-		fmt.Println(parametersIn["1055"])                       //система налогообложкния
-		fmt.Println(parametersIn["1187"])                       //место расчетов
-		fmt.Println(parametersIn["LIBFPTR_PARAM_RECEIPT_TYPE"]) //тип чека
+		//fmt.Println(parametersIn["1055"])                       //система налогообложкния
+		//fmt.Println(parametersIn["1187"])                       //место расчетов
+		//fmt.Println(parametersIn["LIBFPTR_PARAM_RECEIPT_TYPE"]) //тип чека
 		for kTemp, vTemp := range parametersIn {
 			openReceiptMap[kTemp] = vTemp
 		}
@@ -249,7 +258,7 @@ func processingResultOfCommand(namelogfile string, numLine int, deviceId string,
 		//LIBFPTR_RT_BUY_RETURN_CORRECTION = 10,
 	case "registration":
 		//запоминаем позицию, если чек будет закрыт, то запишем эту ифнформацию в файл
-		fmt.Println(parametersIn["LIBFPTR_PARAM_COMMODITY_NAME"])
+		/*fmt.Println(parametersIn["LIBFPTR_PARAM_COMMODITY_NAME"])
 		fmt.Println(parametersIn["LIBFPTR_PARAM_POSITION_SUM"])
 		fmt.Println(parametersIn["LIBFPTR_PARAM_PRICE"])
 		fmt.Println(parametersIn["LIBFPTR_PARAM_QUANTITY"])
@@ -260,7 +269,7 @@ func processingResultOfCommand(namelogfile string, numLine int, deviceId string,
 		fmt.Println(parametersIn["LIBFPTR_PARAM_MARKING_PROCESSING_MODE"])
 		fmt.Println(parametersIn["1212"])
 		fmt.Println(parametersIn["1214"])
-		fmt.Println(parametersIn["LIBFPTR_PARAM_MEASUREMENT_UNIT"])
+		fmt.Println(parametersIn["LIBFPTR_PARAM_MEASUREMENT_UNIT"])*/
 		curPos := fmt.Sprint(len(registrationMap) + 1)
 		registrationMap[curPos] = make(map[string]string)
 		for kTemp, vTemp := range parametersIn {
@@ -282,11 +291,11 @@ func processingResultOfCommand(namelogfile string, numLine int, deviceId string,
 		prevSummOfPayment = 0
 		currSummOfPayment = 0
 		prevSummOfPaymentStr := ""
-		newSummOfPayStr := parametersIn["LIBFPTR_PARAM_PAYMENT_SUM"]
-		fmt.Println(parametersIn["LIBFPTR_PARAM_PAYMENT_TYPE"]) //тип оплаты
-		fmt.Println(parametersIn["LIBFPTR_PARAM_PAYMENT_SUM"])  //сумма типом оплаты
-		typeOfPaymentTemp := parametersIn["LIBFPTR_PARAM_PAYMENT_TYPE"]
-		if _, ok := paymentMap[typeOfPaymentTemp]; ok { //если один и тот же тип оплаты несколько раз
+		newSummOfPayStr := parametersIn["LIBFPTR_PARAM_PAYMENT_SUM"] //сумма типом оплаты
+		//fmt.Println(parametersIn["LIBFPTR_PARAM_PAYMENT_TYPE"]) //тип оплаты
+		//fmt.Println(parametersIn["LIBFPTR_PARAM_PAYMENT_SUM"])  //сумма типом оплаты
+		typeOfPaymentTemp := parametersIn["LIBFPTR_PARAM_PAYMENT_TYPE"] //тип оплаты
+		if _, ok := paymentMap[typeOfPaymentTemp]; ok {                 //если один и тот же тип оплаты несколько раз
 			prevSummOfPaymentStr := paymentMap[typeOfPaymentTemp]
 			if summTemp, err := strconv.ParseFloat(prevSummOfPaymentStr, 64); err == nil {
 				prevSummOfPayment = summTemp
@@ -309,48 +318,38 @@ func processingResultOfCommand(namelogfile string, numLine int, deviceId string,
 		paymentMap[typeOfPaymentTemp] = newSummOfPayStr
 	case "receipt_total":
 		//запоминаем сумма чека
-		fmt.Println(parametersIn["LIBFPTR_PARAM_SUM"]) //сумма чека
+		//fmt.Println(parametersIn["LIBFPTR_PARAM_SUM"]) //сумма чека
 		*receiptTotal = parametersIn["LIBFPTR_PARAM_SUM"]
 	case "close_receipt": //запоминаем чек
 		//
 	case "check_document_closed":
 		//ничего не делаем
-		fmt.Println(parametersOut["LIBFPTR_PARAM_DOCUMENT_CLOSED"])
-		fmt.Println(parametersOut["LIBFPTR_PARAM_DOCUMENT_PRINTED"])
+		//fmt.Println(parametersOut["LIBFPTR_PARAM_DOCUMENT_CLOSED"])
+		//fmt.Println(parametersOut["LIBFPTR_PARAM_DOCUMENT_PRINTED"])
 		//проверяем спсиок последних операций, если последние операции были оперции формирования чека, то
 		//если LIBFPTR_PARAM_DOCUMENT_CLOSED = true, то отмечаем, что чек был закрыт
 		//сохраняем чек на диск и очищаем буфер
 	case "query_data":
 		switch parametersIn["LIBFPTR_PARAM_DATA_TYPE"] {
 		case "0", "16": //LIBFPTR_DT_STATUS, LIBFPTR_DT_SERIAL_NUMBER
-			fmt.Println(parametersOut["LIBFPTR_PARAM_SERIAL_NUMBER"]) //заводской номер ККТ
+			//fmt.Println(parametersOut["LIBFPTR_PARAM_SERIAL_NUMBER"]) //заводской номер ККТ
 			//запоминаем серийный номер для текущего deviceId команды
-			deviceMap["zavNum"] = parametersOut["LIBFPTR_PARAM_SERIAL_NUMBER"]
+			if parametersOut["LIBFPTR_PARAM_SERIAL_NUMBER"] != "" {
+				deviceMap["zavNum"] = parametersOut["LIBFPTR_PARAM_SERIAL_NUMBER"] //заводской номер ККТ
+			}
 		}
 	case "fn_query_data":
 		switch parametersIn["LIBFPTR_PARAM_FN_DATA_TYPE"] {
 		case "2": //LIBFPTR_FNDT_FN_INFO
 			//запоминаем текущего deviceId команды
-			fmt.Println(parametersOut["LIBFPTR_PARAM_SERIAL_NUMBER"]) //ФН
-			fmt.Println(parametersOut["LIBFPTR_PARAM_FN_VERSION"])    //"fn_v_1_1_2   "
-			deviceMap["fn"] = parametersOut["LIBFPTR_PARAM_SERIAL_NUMBER"]
-			deviceMap["ffdstr"] = parametersOut["LIBFPTR_PARAM_FN_VERSION"]
+			deviceMap["fn"] = parametersOut["LIBFPTR_PARAM_SERIAL_NUMBER"]  //ФН
+			deviceMap["ffdstr"] = parametersOut["LIBFPTR_PARAM_FN_VERSION"] //"fn_v_1_1_2   "
 		case "7": //LIBFPTR_FNDT_FFD_VERSIONS
 			//запоминаем текущего deviceId команды
 			//LIBFPTR_FFD_UNKNOWN = 0,LIBFPTR_FFD_1_0 = 100,LIBFPTR_FFD_1_0_5 = 105,LIBFPTR_FFD_1_1 = 110,LIBFPTR_FFD_1_2 = 120
-			fmt.Println(parametersOut["LIBFPTR_PARAM_FFD_VERSION"])
 			deviceMap["ffdint"] = parametersOut["LIBFPTR_PARAM_FFD_VERSION"]
 		case "9": //LIBFPTR_FNDT_REG_INFO
 			//запоминаем текущего deviceId команды
-			fmt.Println(parametersOut["1065"]) //ОСН
-			fmt.Println(parametersOut["1209"]) //ffdVersion
-			fmt.Println(parametersOut["1009"]) //organizationAddress
-			fmt.Println(parametersOut["1018"]) //organizationVATIN
-			fmt.Println(parametersOut["1048"]) //organizationName
-			fmt.Println(parametersOut["1187"]) //paymentsAddress
-			fmt.Println(parametersOut["1037"]) //регистрационный номер ККТ
-			fmt.Println(parametersOut["1036"]) //заводской номер ККТ
-			fmt.Println(parametersOut["1046"]) //ofdName
 			deviceMap["osn"] = parametersOut["1065"]
 			deviceMap["ffdtag"] = parametersOut["1209"]
 			deviceMap["firmaddress"] = parametersOut["1009"]
@@ -358,124 +357,138 @@ func processingResultOfCommand(namelogfile string, numLine int, deviceId string,
 			deviceMap["name"] = parametersOut["1048"]
 			deviceMap["place"] = parametersOut["1187"]
 			deviceMap["regNum"] = parametersOut["1037"]
-			deviceMap["zavNum"] = parametersOut["1036"]
+			if parametersOut["1036"] != "" {
+				deviceMap["zavNum"] = parametersOut["1036"]
+			}
 			deviceMap["ofd"] = parametersOut["1046"]
+			deviceMap["innofd"] = parametersOut["1017"]
 		case "0": //LIBFPTR_FNDT_TAG_VALUE
 			//ничего не делаем
-			fmt.Println(parametersIn["LIBFPTR_PARAM_TAG_NUMBER"]) //номер тега
-			fmt.Println(parametersOut["LIBFPTR_PARAM_TAG_VALUE"]) //его значение
+			//fmt.Println(parametersIn["LIBFPTR_PARAM_TAG_NUMBER"]) //номер тега
+			//fmt.Println(parametersOut["LIBFPTR_PARAM_TAG_VALUE"]) //его значение
 		case "4", "5": //LIBFPTR_FNDT_LAST_RECEIPT, LIBFPTR_FNDT_LAST_DOCUMENT
-			fmt.Println(parametersOut["LIBFPTR_PARAM_DOCUMENT_NUMBER"])
+			//fmt.Println(parametersOut["LIBFPTR_PARAM_DOCUMENT_NUMBER"])
 			//parametersIn["LIBFPTR_PARAM_RECEIPT_TYPE"]
 			//parametersIn["LIBFPTR_PARAM_RECEIPT_SUM"]
-			fmt.Println(parametersOut["LIBFPTR_PARAM_FISCAL_SIGN"])
+			//fmt.Println(parametersOut["LIBFPTR_PARAM_FISCAL_SIGN"])
 			dateAndTimeDocum := parametersOut["LIBFPTR_PARAM_DATE_TIME"] //2023.11.22 09:16:00
 			//запоминаем ФП, ФД, дату и время чека
-			fmt.Println(dateAndTimeDocum) //Дата и время документа
+			//fmt.Println(dateAndTimeDocum) //Дата и время документа
 			indSpace := strings.Index(dateAndTimeDocum, " ")
 			dateDocum := strings.TrimSpace(dateAndTimeDocum[:indSpace])
 			timeDoc := strings.TrimSpace(dateAndTimeDocum[indSpace:])
-			fmt.Println(dateDocum) //дата документа
-			fmt.Println(timeDoc)   //время документа
+			//fmt.Println(dateDocum) //дата документа
+			//fmt.Println(timeDoc)   //время документа
 			//проверяем спсиок последних операций, если последние операции были оперции формирования чека, то
-			if lastAssenatialActWasCloseReceipt(queueLastActs) {
-				//сохраняем последний чек на диск и очищаем буфер
-				//шапка чека
-				reslHeaderReciept = make(map[string]string)
-				reslHeaderReciept["deviceId"] = deviceId
-				reslHeaderReciept["factoryNum"] = deviceMap["zavNum"]
-				reslHeaderReciept["regNum"] = deviceMap["regNum"]
-				reslHeaderReciept["fn"] = deviceMap["fn"]
-				reslHeaderReciept["ffdstr"] = deviceMap["ffdstr"]
-				reslHeaderReciept["ffdint"] = deviceMap["ffdstr"]
-				reslHeaderReciept["ffdtag"] = deviceMap["ffdtag"]
-				reslHeaderReciept["INN"] = deviceMap["INN"]
-				reslHeaderReciept["name"] = deviceMap["name"]
-				if openReceiptMap["1187"] == "" {
-					reslHeaderReciept["place"] = deviceMap["place"]
-				} else {
-					reslHeaderReciept["place"] = openReceiptMap["1187"]
-				}
-				reslHeaderReciept["cashier"] = operatorLoginMap["1021"]
-				reslHeaderReciept["FD"] = parametersOut["LIBFPTR_PARAM_DOCUMENT_NUMBER"]
-				reslHeaderReciept["FP"] = parametersOut["LIBFPTR_PARAM_FISCAL_SIGN"]
-				reslHeaderReciept["dateandtime"] = parametersOut["LIBFPTR_PARAM_DATE_TIME"]
-				reslHeaderReciept["date"] = dateDocum
-				reslHeaderReciept["time"] = timeDoc
-				if openReceiptMap["1055"] == "" {
-					reslHeaderReciept["OSN"] = deviceMap["osn"]
-				} else {
-					reslHeaderReciept["OSN"] = openReceiptMap["1055"]
-				}
-				reslHeaderReciept["typeReciept"] = openReceiptMap["LIBFPTR_PARAM_RECEIPT_TYPE"]
-				reslHeaderReciept["typeofcorrection"] = openReceiptMap["1173"]
-				reslHeaderReciept["datecorrection"] = openReceiptMap["1178"]
-				reslHeaderReciept["documNumofCorrection"] = openReceiptMap["1174"]
-				reslHeaderReciept["thereMarks"] = strconv.FormatBool(registrationMapHaveMarks(registrationMap))
-				//LIBFPTR_PT_CASH           = 0
-				//LIBFPTR_PT_ELECTRONICALLY = 1
-				//LIBFPTR_PT_PREPAID        = 2
-				//LIBFPTR_PT_CREDIT         = 3
-				//LIBFPTR_PT_OTHER          = 4
-				//LIBFPTR_PT_6              = 5
-				//LIBFPTR_PT_7              = 6
-				//LIBFPTR_PT_8              = 7
-				//LIBFPTR_PT_9              = 8
-				//LIBFPTR_PT_10             = 9
-				if *receiptTotal != "" {
-					reslHeaderReciept["summ"] = *receiptTotal
-				} else {
-					reslHeaderReciept["summ"] = getSummStrFromRegistrationMap(namelogfile, numLine, deviceId,
-						deviceMap["zavNum"], command, registrationMap, parametersOut["LIBFPTR_PARAM_DOCUMENT_NUMBER"])
-				}
-				reslHeaderReciept["nal"] = paymentMap["0"]
-				reslHeaderReciept["beznal"] = paymentMap["1"]
-				reslHeaderReciept["avance"] = paymentMap["2"]
-				reslHeaderReciept["credit"] = paymentMap["3"]
-				reslHeaderReciept["predstav"] = paymentMap["4"]
-				reslHeaderReciept["6pay"] = paymentMap["5"]
-				reslHeaderReciept["7pay"] = paymentMap["6"]
-				reslHeaderReciept["8pay"] = paymentMap["7"]
-				reslHeaderReciept["9pay"] = paymentMap["8"]
-				reslHeaderReciept["10pay"] = paymentMap["9"]
-				//registration postioan
-				reslRegistrReciept = make(map[string]map[string]string)
-				for numpos, pos := range registrationMap {
-					reslRegistrReciept[numpos] = make(map[string]string)
-					reslRegistrReciept[numpos]["name"] = pos["LIBFPTR_PARAM_COMMODITY_NAME"]
-					reslRegistrReciept[numpos]["price"] = pos["LIBFPTR_PARAM_PRICE"]
-					reslRegistrReciept[numpos]["quantity"] = pos["LIBFPTR_PARAM_QUANTITY"]
-					reslRegistrReciept[numpos]["mera"] = pos["LIBFPTR_PARAM_MEASUREMENT_UNIT"]
-					reslRegistrReciept[numpos]["amount"] = pos["LIBFPTR_PARAM_POSITION_SUM"]
-					reslRegistrReciept[numpos]["predm"] = pos["1212"]
-					reslRegistrReciept[numpos]["sposob"] = pos["1214"]
-					reslRegistrReciept[numpos]["stavka"] = pos["LIBFPTR_PARAM_TAX_TYPE"]
+			if len(registrationMap) > 0 {
+				if lastAssenatialActWasCloseReceipt(queueLastActs) && (len(registrationMap) > 0) {
+					//сохраняем последний чек на диск и очищаем буфер
+					//шапка чека
+					reslHeaderReciept = make(map[string]string)
+					reslHeaderReciept["deviceId"] = deviceId
+					reslHeaderReciept["factoryNum"] = deviceMap["zavNum"]
+					reslHeaderReciept["regNum"] = deviceMap["regNum"]
+					reslHeaderReciept["fn"] = deviceMap["fn"]
+					reslHeaderReciept["ffdstr"] = deviceMap["ffdstr"]
+					reslHeaderReciept["ffdint"] = deviceMap["ffdstr"]
+					reslHeaderReciept["ffdtag"] = deviceMap["ffdtag"]
+					reslHeaderReciept["INN"] = deviceMap["INN"]
+					reslHeaderReciept["name"] = deviceMap["name"]
+					if openReceiptMap["1187"] == "" {
+						reslHeaderReciept["place"] = deviceMap["place"]
+					} else {
+						reslHeaderReciept["place"] = openReceiptMap["1187"]
+					}
+					reslHeaderReciept["cashier"] = operatorLoginMap["1021"]
+					reslHeaderReciept["FD"] = parametersOut["LIBFPTR_PARAM_DOCUMENT_NUMBER"]
+					reslHeaderReciept["FP"] = parametersOut["LIBFPTR_PARAM_FISCAL_SIGN"]
+					reslHeaderReciept["dateandtime"] = parametersOut["LIBFPTR_PARAM_DATE_TIME"]
+					reslHeaderReciept["date"] = dateDocum
+					reslHeaderReciept["time"] = timeDoc
+					if openReceiptMap["1055"] == "" {
+						reslHeaderReciept["OSN"] = deviceMap["osn"]
+					} else {
+						reslHeaderReciept["OSN"] = openReceiptMap["1055"]
+					}
+					reslHeaderReciept["typeReciept"] = openReceiptMap["LIBFPTR_PARAM_RECEIPT_TYPE"]
+					reslHeaderReciept["typeofcorrection"] = openReceiptMap["1173"]
+					reslHeaderReciept["datecorrection"] = openReceiptMap["1178"]
+					reslHeaderReciept["documNumofCorrection"] = openReceiptMap["1174"]
+					reslHeaderReciept["thereMarks"] = strconv.FormatBool(registrationMapHaveMarks(registrationMap))
+					//LIBFPTR_PT_CASH           = 0
+					//LIBFPTR_PT_ELECTRONICALLY = 1
+					//LIBFPTR_PT_PREPAID        = 2
+					//LIBFPTR_PT_CREDIT         = 3
+					//LIBFPTR_PT_OTHER          = 4
+					//LIBFPTR_PT_6              = 5
+					//LIBFPTR_PT_7              = 6
+					//LIBFPTR_PT_8              = 7
+					//LIBFPTR_PT_9              = 8
+					//LIBFPTR_PT_10             = 9
+					if *receiptTotal != "" {
+						reslHeaderReciept["summ"] = *receiptTotal
+					} else {
+						reslHeaderReciept["summ"] = getSummStrFromRegistrationMap(namelogfile, numLine, deviceId,
+							deviceMap["zavNum"], command, registrationMap, parametersOut["LIBFPTR_PARAM_DOCUMENT_NUMBER"])
+					}
+					reslHeaderReciept["nal"] = paymentMap["0"]
+					reslHeaderReciept["beznal"] = paymentMap["1"]
+					reslHeaderReciept["avance"] = paymentMap["2"]
+					reslHeaderReciept["credit"] = paymentMap["3"]
+					reslHeaderReciept["predstav"] = paymentMap["4"]
+					reslHeaderReciept["6pay"] = paymentMap["5"]
+					reslHeaderReciept["7pay"] = paymentMap["6"]
+					reslHeaderReciept["8pay"] = paymentMap["7"]
+					reslHeaderReciept["9pay"] = paymentMap["8"]
+					reslHeaderReciept["10pay"] = paymentMap["9"]
+					//registration postioan
+					reslRegistrReciept = make(map[string]map[string]string)
+					for numpos, pos := range registrationMap {
+						reslRegistrReciept[numpos] = make(map[string]string)
+						reslRegistrReciept[numpos]["name"] = pos["LIBFPTR_PARAM_COMMODITY_NAME"]
+						reslRegistrReciept[numpos]["price"] = pos["LIBFPTR_PARAM_PRICE"]
+						reslRegistrReciept[numpos]["quantity"] = pos["LIBFPTR_PARAM_QUANTITY"]
+						reslRegistrReciept[numpos]["mera"] = pos["LIBFPTR_PARAM_MEASUREMENT_UNIT"]
+						reslRegistrReciept[numpos]["amount"] = pos["LIBFPTR_PARAM_POSITION_SUM"]
+						reslRegistrReciept[numpos]["predm"] = pos["1212"]
+						reslRegistrReciept[numpos]["sposob"] = pos["1214"]
+						reslRegistrReciept[numpos]["stavka"] = pos["LIBFPTR_PARAM_TAX_TYPE"]
 
-					reslRegistrReciept[numpos]["buyername"] = pos["1227"]
-					reslRegistrReciept[numpos]["buyerinn"] = pos["1228"]
+						reslRegistrReciept[numpos]["buyername"] = pos["1227"]
+						reslRegistrReciept[numpos]["buyerinn"] = pos["1228"]
 
-					reslRegistrReciept[numpos]["agent"] = pos["1222"]
-					reslRegistrReciept[numpos]["addressagent"] = pos["1016"]
-					reslRegistrReciept[numpos]["innagent"] = pos["1026"]
-					reslRegistrReciept[numpos]["nameagent"] = pos["1044"]
-					reslRegistrReciept[numpos]["telephagent"] = pos["1073"]
-					reslRegistrReciept[numpos]["telephoperpriem"] = pos["1074"]
-					reslRegistrReciept[numpos]["telephoperperev"] = pos["1075"]
+						reslRegistrReciept[numpos]["agent"] = pos["1222"]
+						reslRegistrReciept[numpos]["addressagent"] = pos["1016"]
+						reslRegistrReciept[numpos]["innagent"] = pos["1026"]
+						reslRegistrReciept[numpos]["nameagent"] = pos["1044"]
+						reslRegistrReciept[numpos]["telephagent"] = pos["1073"]
+						reslRegistrReciept[numpos]["telephoperpriem"] = pos["1074"]
+						reslRegistrReciept[numpos]["telephoperperev"] = pos["1075"]
 
-					reslRegistrReciept[numpos]["innspl"] = pos["1171"]
-					reslRegistrReciept[numpos]["namespl"] = pos["1225"]
+						reslRegistrReciept[numpos]["innspl"] = pos["1171"]
+						reslRegistrReciept[numpos]["namespl"] = pos["1225"]
 
-					reslRegistrReciept[numpos]["makr"] = pos["LIBFPTR_PARAM_MARKING_CODE"]
-					reslRegistrReciept[numpos]["statusofmark"] = pos["LIBFPTR_PARAM_MARKING_CODE_STATUS"]
-					reslRegistrReciept[numpos]["validationofmark"] = pos["LIBFPTR_PARAM_MARKING_CODE_ONLINE_VALIDATION_RESULT"]
-					reslRegistrReciept[numpos]["processingmodeofmark"] = pos["LIBFPTR_PARAM_MARKING_PROCESSING_MODE"]
-				}
-				//checkWrite()
-				//positionsOfCheckWrite
-			}
-		}
+						reslRegistrReciept[numpos]["makr"] = pos["LIBFPTR_PARAM_MARKING_CODE"]
+						reslRegistrReciept[numpos]["statusofmark"] = pos["LIBFPTR_PARAM_MARKING_CODE_STATUS"]
+						reslRegistrReciept[numpos]["validationofmark"] = pos["LIBFPTR_PARAM_MARKING_CODE_ONLINE_VALIDATION_RESULT"]
+						reslRegistrReciept[numpos]["processingmodeofmark"] = pos["LIBFPTR_PARAM_MARKING_PROCESSING_MODE"]
+					} //цикл по позициям
+					//очищаем информацию об кассирах, осн, типа чека, регистрациях, оплатах и суммах
+					clearParametersOfCommand(operatorLoginMap)
+					clearParametersOfCommand(openReceiptMap)
+					clearParametersOfCommand(paymentMap)
+					*receiptTotal = ""
+					for kTemp := range registrationMap {
+						clearParametersOfCommand(registrationMap[kTemp])
+					}
+					for kTemp := range registrationMap {
+						delete(registrationMap, kTemp)
+					}
+				} //если оджна из предыдущих команд была close_reciept
+			} //если буфер данных по чеку не пуст
+		} //case тип fn_query
 	default:
-		logsmap[LOGINFO_WITHSTD].Println("logfile", namelogfile, "line", numLine, "deviceId", deviceId,
+		logsmap[LOGINFO].Println("logfile", namelogfile, "line", numLine, "deviceId", deviceId,
 			"zavNum", deviceMap["zavNum"], "команды", command, "не будет обработана")
 	}
 	return reslHeaderReciept, reslRegistrReciept, "", nil
@@ -703,6 +716,14 @@ func ReadAtolLogFile(atolLogFile string, baseReceiptHeader, baseReceiptPostions 
 						logsmap[LOGERROR].Println(descrError)
 					} else {
 						if len(headerReceipt) > 0 {
+							logsmap[LOGOTHER].Println("logfile", shortFileNameLog, "line", currNumLine, "deviceId",
+								currDeviceId, "zavNum", deviceMapByDeviceId[currDeviceId]["zavNum"],
+								"оброботка команды", QueueLastRightCommandsByDeviceId[currDeviceId][0],
+								"headerReceipt", headerReceipt)
+							logsmap[LOGOTHER].Println("logfile", shortFileNameLog, "line", currNumLine, "deviceId",
+								currDeviceId, "zavNum", deviceMapByDeviceId[currDeviceId]["zavNum"],
+								"оброботка команды", QueueLastRightCommandsByDeviceId[currDeviceId][0],
+								"postionsReceipt", postionsReceipt)
 							writeRecordOfReceipt(shortFileNameLog, currNumLine, currDeviceId,
 								deviceMapByDeviceId[currDeviceId]["zavNum"], baseReceiptHeader, headerReceipt)
 							if len(postionsReceipt) > 0 {
@@ -1003,12 +1024,21 @@ func getDeviceIdofCommand(shortLineOfLog string) string {
 
 func writeRecordOfReceipt(namelogfile string, numLine int, deviceId string, zavNum string, baseReceiptHeader *csv.Writer,
 	checkHeader map[string]string) (string, error) {
-	recordCheck := make([]string, len(checkHeader))
-	indField := 0
-	for _, v := range checkHeader {
-		recordCheck[indField] = v
-		indField++
+	recordCheck := make([]string, len(fieldsHeaderRes))
+	//indField := 0
+	for fieldNum := 0; fieldNum < len(fieldsHeaderRes); fieldNum++ {
+		newstr := checkHeader[fieldsHeaderRes[fieldNum]]
+		newstr, _ = strings.CutPrefix(newstr, "\"")
+		newstr, _ = strings.CutSuffix(newstr, "\"")
+		recordCheck[fieldNum] = newstr
 	}
+	/*for _, v := range checkHeader {
+		newstr, _ := strings.CutPrefix(v, "\"")
+		newstr, _ = strings.CutSuffix(newstr, "\"")
+		recordCheck[indField] = newstr
+		indField++
+	}*/
+	logsmap[LOGOTHER].Println(recordCheck)
 	err := baseReceiptHeader.Write(recordCheck)
 	if err != nil {
 		decrError := fmt.Sprintf("ошибка записи в базу информации о чеке. Ошибка: %v", err)
@@ -1025,22 +1055,38 @@ func writeRecordsOfRegistartionReceipt(namelogfile string, numLine int, deviceId
 
 	for numPos, pos := range postionsReceipt {
 		if len(recordPosition) == 0 {
-			recordPosition = make([]string, len(pos)+5)
+			recordPosition = make([]string, len(fieldsPositionsRes))
 		} else {
 			for i := 0; i < len(recordPosition); i++ {
 				recordPosition[i] = ""
 			}
 		}
-		recordPosition[0] = checkHeader["INN"]        //ИНН
-		recordPosition[1] = checkHeader["factoryNum"] //заводской номер ККТ
-		recordPosition[2] = checkHeader["fn"]         //ФН
-		recordPosition[3] = checkHeader["FD"]         //ФД
-		recordPosition[4] = checkHeader["summ"]       //сумма чека
-		indFiled := 5
-		for _, v := range pos {
-			recordPosition[indFiled] = v
-			indFiled++
+		newstr, _ := strings.CutPrefix(checkHeader["INN"], "\"")
+		newstr, _ = strings.CutSuffix(newstr, "\"")
+		recordPosition[0] = newstr //ИНН
+		newstr, _ = strings.CutPrefix(checkHeader["factoryNum"], "\"")
+		newstr, _ = strings.CutSuffix(newstr, "\"")
+		recordPosition[1] = newstr //заводской номер ККТ
+		newstr, _ = strings.CutPrefix(checkHeader["fn"], "\"")
+		newstr, _ = strings.CutSuffix(newstr, "\"")
+		recordPosition[2] = newstr //ФН
+		newstr, _ = strings.CutPrefix(checkHeader["FD"], "\"")
+		newstr, _ = strings.CutSuffix(newstr, "\"")
+		recordPosition[3] = newstr              //ФД
+		recordPosition[4] = checkHeader["summ"] //сумма чека
+		//indFiled := 5
+		for fieldNum := 5; fieldNum < len(fieldsPositionsRes); fieldNum++ {
+			newstr := pos[fieldsPositionsRes[fieldNum]]
+			newstr, _ = strings.CutPrefix(newstr, "\"")
+			newstr, _ = strings.CutSuffix(newstr, "\"")
+			recordPosition[fieldNum] = newstr
 		}
+		/*for _, v := range pos {
+			newstr, _ := strings.CutPrefix(v, "\"")
+			newstr, _ = strings.CutSuffix(newstr, "\"")
+			recordPosition[indFiled] = newstr
+			indFiled++
+		}*/
 		err := baseReceiptPostions.Write(recordPosition)
 		if err != nil {
 			decrError := fmt.Sprintf("ошибка записи в базу позиции %v чека. Ошибка: %v", numPos, err)
