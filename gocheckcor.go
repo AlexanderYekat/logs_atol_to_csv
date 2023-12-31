@@ -20,8 +20,47 @@ import (
 	"strings"
 )
 
+type TPayments struct {
+	Type string  `json:"type"`
+	Sum  float64 `json:"sum"`
+}
+
+type TPosition struct {
+	Type string `json:"type"`
+	Name string `json:"name"`
+	/*price
+	quantity
+	amount
+	measurementUnit
+	paymentMethod
+	paymentObject
+	tax
+	//imcParams
+	//agentInfo
+	//supplierInfo
+	//productCodes
+	//exciseSum*/
+}
+
+type TOperator struct {
+	Name string `json:"name"`
+}
+
+type TCorrectionCheck struct {
+	Type                 string      `json:"type"`
+	Electronically       bool        `json:"electronically"`
+	CorrectionType       string      `json:"correctionType"`
+	CorrectionBaseDate   string      `json:"correctionBaseDate"`
+	CorrectionBaseNumber string      `json:"correctionBaseNumber"`
+	Operator             TOperator   `json:"operator"`
+	Items                []TPosition `json:"items"`
+	Payments             []TPayments `json:"payments"`
+	Total                float64     `json:"total,omitempty"`
+}
+
 var dirOfAtolLogs = flag.String("diratollogs", "", "директория лог фалов атол по умолчанию %appdata%\\AppData\\ATOL\\drivers10\\logs")
 var clearLogsProgramm = flag.Bool("clearlogs", true, "очистить логи программы")
+var commandForAction = flag.String("command", "update", "команда")
 
 var LOGSDIR = "./logs/"
 
@@ -554,6 +593,7 @@ func ReadAtolLogFile(atolLogFile string, baseReceiptHeader, baseReceiptPostions 
 	for scannerLogAtol.Scan() {
 		currNumLine++
 		line := scannerLogAtol.Bytes()
+		//currLineStr = string(line)
 		if thisLineHasNoContent(shortFileNameLog, line, currNumLine) {
 			continue
 		}
@@ -1130,4 +1170,8 @@ func getSummStrFromRegistrationMap(namelogfile string, numLine int, deviceId str
 	}
 	res = fmt.Sprint(totalSumm)
 	return res
+}
+
+func getJsonCorrectionFromCheck() {
+
 }

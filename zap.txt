@@ -1,0 +1,154 @@
+//ИНН огранизации, название организации, серийный номер фискальника, заводской номер ККТ, регистрационный номер ККТ, точка расчета,
+//кассир, номер ФД, ФП, OSN,дата и время, сумма документа, сумма наличными, субзналичными, сумма авансом, сумма кредитом, сумма представлением
+1) обработка такой команды не сделана
+libfptr_util_form_tlv
+2) не отпределения какая касса выполняет команду!!!
+
+//серийный номер ФН
+LIBFPTR_PARAM_FN_DATA_TYPE (65622) = 2 (LIBFPTR_FNDT_FN_INFO)
+fn_query_data()
+LIBFPTR_PARAM_SERIAL_NUMBER
+
+const (
+	LIBFPTR_TAX_DEPARTMENT = 0
+	LIBFPTR_TAX_VAT18      = 1
+	LIBFPTR_TAX_VAT10      = 2
+	LIBFPTR_TAX_VAT118     = 3
+	LIBFPTR_TAX_VAT110     = 4
+	LIBFPTR_TAX_VAT0       = 5
+	LIBFPTR_TAX_NO         = 6
+	LIBFPTR_TAX_VAT20      = 7
+	LIBFPTR_TAX_VAT120     = 8
+	LIBFPTR_TAX_INVALID    = 9
+
+enum libfptr_receipt_type
+{
+    LIBFPTR_RT_CLOSED = 0,
+    LIBFPTR_RT_SELL = 1,
+    LIBFPTR_RT_SELL_RETURN = 2,
+    LIBFPTR_RT_SELL_CORRECTION = 7,
+    LIBFPTR_RT_SELL_RETURN_CORRECTION = 8,
+    LIBFPTR_RT_BUY = 4,
+    LIBFPTR_RT_BUY_RETURN = 5,
+    LIBFPTR_RT_BUY_CORRECTION = 9,
+    LIBFPTR_RT_BUY_RETURN_CORRECTION = 10,
+};
+
+
+fnQueryData
+const (
+	LIBFPTR_FNDT_TAG_VALUE                = 0
+	LIBFPTR_FNDT_OFD_EXCHANGE_STATUS      = 1
+	LIBFPTR_FNDT_FN_INFO                  = 2
+	LIBFPTR_FNDT_LAST_REGISTRATION        = 3
+	LIBFPTR_FNDT_LAST_RECEIPT             = 4
+	LIBFPTR_FNDT_LAST_DOCUMENT            = 5
+	LIBFPTR_FNDT_SHIFT                    = 6
+	LIBFPTR_FNDT_FFD_VERSIONS             = 7
+	LIBFPTR_FNDT_VALIDITY                 = 8
+	LIBFPTR_FNDT_REG_INFO                 = 9
+	LIBFPTR_FNDT_DOCUMENTS_COUNT_IN_SHIFT = 10
+	LIBFPTR_FNDT_ERRORS                   = 11
+	LIBFPTR_FNDT_TICKET_BY_DOC_NUMBER     = 12
+	LIBFPTR_FNDT_DOCUMENT_BY_NUMBER       = 13
+	LIBFPTR_FNDT_REGISTRATION_TLV         = 14
+	LIBFPTR_FNDT_ERROR_DETAIL             = 15
+	LIBFPTR_FNDT_VALIDITY_DAYS            = 16
+	LIBFPTR_FNDT_FREE_MEMORY              = 17
+	LIBFPTR_FNDT_TOTALS                   = 18
+	LIBFPTR_FNDT_ISM_ERRORS               = 19
+	LIBFPTR_FNDT_ISM_EXCHANGE_STATUS      = 20
+	LIBFPTR_FNDT_MARKING_MODE_STATUS      = 21
+	LIBFPTR_FNDT_CHECK_MARK_TIME          = 22
+	LIBFPTR_FNDT_RECEIPT_SIZE             = 23
+)
+queruData
+LIBFPTR_DT_SERIAL_NUMBER                    = 16
+const (
+	LIBFPTR_DT_STATUS                           = 0
+	LIBFPTR_DT_CASH_SUM                         = 1
+	LIBFPTR_DT_UNIT_VERSION                     = 2
+	LIBFPTR_DT_PICTURE_INFO                     = 3
+	LIBFPTR_DT_LICENSE_ACTIVATED                = 4
+	LIBFPTR_DT_REGISTRATIONS_SUM                = 5
+	LIBFPTR_DT_REGISTRATIONS_COUNT              = 6
+	LIBFPTR_DT_PAYMENT_SUM                      = 7
+	LIBFPTR_DT_CASHIN_SUM                       = 8
+	LIBFPTR_DT_CASHIN_COUNT                     = 9
+	LIBFPTR_DT_CASHOUT_SUM                      = 10
+	LIBFPTR_DT_CASHOUT_COUNT                    = 11
+	LIBFPTR_DT_REVENUE                          = 12
+	LIBFPTR_DT_DATE_TIME                        = 13
+	LIBFPTR_DT_SHIFT_STATE                      = 14
+	LIBFPTR_DT_RECEIPT_STATE                    = 15
+	LIBFPTR_DT_SERIAL_NUMBER                    = 16
+	LIBFPTR_DT_MODEL_INFO                       = 17
+	LIBFPTR_DT_RECEIPT_LINE_LENGTH              = 18
+	LIBFPTR_DT_CUTTER_RESOURCE                  = 19
+	LIBFPTR_DT_STEP_RESOURCE                    = 20
+	LIBFPTR_DT_TERMAL_RESOURCE                  = 21
+	LIBFPTR_DT_ENVD_MODE                        = 22
+	LIBFPTR_DT_SHIFT_TAX_SUM                    = 23
+	LIBFPTR_DT_RECEIPT_TAX_SUM                  = 24
+	LIBFPTR_DT_NON_NULLABLE_SUM                 = 25
+	LIBFPTR_DT_RECEIPT_COUNT                    = 26
+	LIBFPTR_DT_CANCELLATION_COUNT_ALL           = 27
+	LIBFPTR_DT_CANCELLATION_SUM                 = 28
+	LIBFPTR_DT_CANCELLATION_SUM_ALL             = 29
+	LIBFPTR_DT_POWER_SOURCE_STATE               = 30
+	LIBFPTR_DT_CANCELLATION_COUNT               = 31
+	LIBFPTR_DT_NON_NULLABLE_SUM_BY_PAYMENTS     = 32
+	LIBFPTR_DT_PRINTER_TEMPERATURE              = 33
+	LIBFPTR_DT_FATAL_STATUS                     = 34
+	LIBFPTR_DT_MAC_ADDRESS                      = 35
+	LIBFPTR_DT_DEVICE_UPTIME                    = 36
+	LIBFPTR_DT_RECEIPT_BYTE_COUNT               = 37
+	LIBFPTR_DT_DISCOUNT_AND_SURCHARGE_SUM       = 38
+	LIBFPTR_DT_LK_USER_CODE                     = 39
+	LIBFPTR_DT_LAST_SENT_OFD_DOCUMENT_DATE_TIME = 40
+	LIBFPTR_DT_SHORT_STATUS                     = 41
+	LIBFPTR_DT_PICTURES_ARRAY_INFO              = 42
+	LIBFPTR_DT_ETHERNET_INFO                    = 43
+	LIBFPTR_DT_SCRIPTS_INFO                     = 44
+	LIBFPTR_DT_SHIFT_TOTALS                     = 45
+	LIBFPTR_DT_WIFI_INFO                        = 46
+	LIBFPTR_DT_FONT_INFO                        = 47
+	LIBFPTR_DT_SOFTLOCK_STATUS                  = 48
+	LIBFPTR_DT_LAST_SENT_ISM_NOTICE_DATE_TIME   = 49
+	LIBFPTR_DT_MCU_INFO                         = 50
+	LIBFPTR_DT_MODULE_ADDRESS                   = 51
+	LIBFPTR_DT_CACHE_REQUISITES                 = 52
+	LIBFPTR_DT_DEPARTMENT_SUM                   = 53
+	LIBFPTR_DT_MCU_TEMPERATURE                  = 54
+	LIBFPTR_DT_AVAILABLE_OPERATIONS             = 55
+	LIBFPTR_DT_PATTERN_PARAMETERS               = 56
+)
+
+fn_doc_type
+	LIBFPTR_DT_CLOSE_SHIFT                           = 6
+	LIBFPTR_DT_REGISTRATION                          = 7
+	LIBFPTR_DT_CLOSE_ARCHIVE                         = 8
+	LIBFPTR_DT_OFD_EXCHANGE_STATUS                   = 11
+	LIBFPTR_DT_RECEIPT_SELL_CORRECTION               = 12
+	LIBFPTR_DT_RECEIPT_SELL_RETURN_CORRECTION        = 13
+	LIBFPTR_DT_RECEIPT_BUY_CORRECTION                = 14
+	LIBFPTR_DT_RECEIPT_BUY_RETURN_CORRECTION         = 15
+	LIBFPTR_DT_DOCUMENT_SERVICE                      = 20
+	LIBFPTR_DT_DOCUMENT_COPY                         = 21
+	LIBFPTR_FN_DOC_REGISTRATION                      = 1
+	LIBFPTR_FN_DOC_OPEN_SHIFT                        = 2
+	LIBFPTR_FN_DOC_RECEIPT                           = 3
+	LIBFPTR_FN_DOC_BSO                               = 4
+	LIBFPTR_FN_DOC_CLOSE_SHIFT                       = 5
+	LIBFPTR_FN_DOC_CLOSE_FN                          = 6
+
+
+enum libfptr_ffd_version
+{
+    LIBFPTR_FFD_UNKNOWN = 0,
+    LIBFPTR_FFD_1_0 = 100,
+    LIBFPTR_FFD_1_0_5 = 105,
+    LIBFPTR_FFD_1_1 = 110,
+    LIBFPTR_FFD_1_2 = 120
+};
+
